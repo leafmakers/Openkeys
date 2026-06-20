@@ -176,6 +176,12 @@ export interface FeaturesConfig {
   settingsPanel: boolean;
   fontDrawer: boolean;
   themeToggle: boolean;
+  /** Editable text input + type-anywhere. */
+  textInput: boolean;
+  /** Per-letter frequency bar. */
+  characterBar: boolean;
+  /** Live words-per-minute readout. */
+  typingSpeed: boolean;
   maxCharacters: number;
 }
 
@@ -356,6 +362,9 @@ export const defaultConfig: OpenKeysConfig = {
     settingsPanel: true,
     fontDrawer: true,
     themeToggle: true,
+    textInput: true,
+    characterBar: true,
+    typingSpeed: true,
     maxCharacters: 90,
   },
 };

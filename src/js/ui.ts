@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { OpenKeysConfig } from '../core/config';
+import { getCharacterFillColor, calculateMaxCharactersForWidth } from '../shared/char-color';
 
 interface UIElements {
   // Core UI Elements
@@ -122,13 +123,6 @@ export class UI {
   private showExtended: boolean = false;
   private filteredFonts: GoogleFont[] = [];
   private weightScrollObserver: IntersectionObserver | null = null;
-  private typingStats: {
-    startTime: number | null;
-    endTime: number | null;
-    characterCount: number;
-    currentWPM: number;
-    isTyping: boolean;
-  };
 
   constructor(engine: any, config: OpenKeysConfig) {
     this.engine = engine;
@@ -187,13 +181,6 @@ export class UI {
     this.fontDrawerInitialized = false;
     this.loadedFontFamilies = new Set();
     this.currentFontIndex = 0;
-    this.typingStats = {
-      startTime: null,
-      endTime: null,
-      characterCount: 0,
-      currentWPM: 0,
-      isTyping: false
-    };
     this.setupElements();
     this.setupEventListeners();
     this.loadThemePreference();
@@ -459,22 +446,15 @@ export class UI {
   }
 
   private applyTheme() {
+    const mode = this.isDarkMode ? 'dark' : 'light';
     const colors = this.isDarkMode ? this.config.theme.dark : this.config.theme.light;
-    document.documentElement.setAttribute('data-theme', this.isDarkMode ? 'dark' : 'light');
+    // Page chrome (single-instance)
+    document.documentElement.setAttribute('data-theme', mode);
     document.body.style.background = colors.background;
-    this.keyboard.scene.scene.background = new THREE.Color(colors.background);
-
-
-    // Update keyboard theme
-    this.keyboard.updateTheme(this.isDarkMode);
-    
-    // Update floor theme
-    this.keyboard.scene.updateFloorTheme(this.isDarkMode);
-    
-    // Update character bar colors for current theme
-    this.updateCharacterBar(this.getDisplayText());
-    
-    localStorage.setItem('theme', this.isDarkMode ? 'dark' : 'light');
+    // Engine owns the three render sinks (scene bg, floor, keyboard) and emits `theme`
+    // so view modules (e.g. character-bar) can react.
+    this.engine.setTheme(mode);
+    localStorage.setItem('theme', mode);
   }
 
   // Removed unused updateSliderPosition method
@@ -490,10 +470,10 @@ export class UI {
   }
 
   private setupCharacterBarEvents() {
-    // View updates now flow from engine events (the keyboard no longer touches the DOM).
-    // `data` drives the frequency bar; `textchange` drives the display text (program/animation
-    // paths only — user keystrokes are left alone to preserve the caret) and the counter.
-    this.engine.on('data', ({ text }: { text: string }) => this.updateCharacterBar(text));
+    // The character-bar and typing-speed modules own the bar + WPM via engine events.
+    // This listener keeps the (not-yet-extracted) text display + counter in sync:
+    // `textchange` drives the display text on program/animation paths (user keystrokes
+    // are left alone to preserve the caret) and the counter on every change.
     this.engine.on(
       'textchange',
       ({ text, length, max, source }: { text: string; length: number; max: number; source: string }) => {
@@ -1643,10 +1623,7 @@ export class UI {
       if (this.isUpdating) return;
       
       const text = element.textContent || '';
-      
-      // Track typing session for WPM calculation
-      this.trackTypingSession(text);
-      
+
       if (!this.hasInteracted && text.trim()) {
         this.hasInteracted = true;
       }
@@ -1782,9 +1759,7 @@ export class UI {
     
     if (e.key === 'Backspace') {
       if (currentText) {
-        const newText = currentText.slice(0, -1);
-        this.updateDisplays(newText);
-        this.trackTypingSession(newText);
+        this.updateDisplays(currentText.slice(0, -1));
       }
       return;
     }
@@ -1795,7 +1770,6 @@ export class UI {
       if (currentText.length < this.maxCharacters) {
         const newText = this.hasInteracted ? currentText + ' ' : ' ';
         this.updateDisplays(newText);
-        this.trackTypingSession(newText);
         this.hasInteracted = true;
       }
       return;
@@ -1803,9 +1777,7 @@ export class UI {
 
     if (this.keyboard.keyObjects[key] && currentText.length < this.maxCharacters) {
       this.hasInteracted = true;
-      const newText = currentText + key;
-      this.updateDisplays(newText);
-      this.trackTypingSession(newText);
+      this.updateDisplays(currentText + key);
     }
   }
 
@@ -1905,9 +1877,9 @@ export class UI {
       }
     }
 
-    this.updateCharacterCount(text);
+    // Counter, bar and WPM are now driven by engine events (character-bar / typing-speed modules
+    // + the textchange listener). updateDisplays only owns the editable text + placeholder.
     this.updateKeyboardFromText(text);
-    this.updateTypingSpeedDisplay();
   }
 
   private resetTextDisplays() {
@@ -1930,10 +1902,9 @@ export class UI {
     }
     
     this.updateDisplays('');
-    this.resetTypingStats();
   }
-  
-  
+
+
   private setCursorToEnd(element: HTMLElement, position?: number) {
     try {
       const range = document.createRange();
@@ -1958,28 +1929,6 @@ export class UI {
     }
   }
 
-  private updateCharacterCount(text: string) {
-    const count = text.length;
-    if (this.elements.characterCount) {
-      this.elements.characterCount.textContent = `${count}/${this.maxCharacters} characters`;
-    }
-    
-    if (this.elements.characterBarSegments) {
-      this.updateCharacterBar(text);
-    }
-  }
-
-  private resetTypingStats(): void {
-    this.typingStats = {
-      startTime: null,
-      endTime: null,
-      characterCount: 0,
-      currentWPM: 0,
-      isTyping: false
-    };
-    this.updateTypingSpeedDisplay();
-  }
-  
   private hidePreview(): void {
     if (this.elements.previewModal) {
       this.elements.previewModal.style.display = 'none';
@@ -2113,167 +2062,6 @@ export class UI {
     
     // Restore the context state
     ctx.restore();
-  }
-
-  private updateTypingSpeedDisplay(): void {
-    if (!this.elements.typingSpeedDisplay) return;
-    
-    const wpm = this.typingStats.currentWPM || 0;
-    this.elements.typingSpeedDisplay.textContent = `${wpm} WPM`;
-    
-    // Optional: Add visual feedback based on typing speed
-    if (wpm > 60) {
-      this.elements.typingSpeedDisplay.style.color = '#4CAF50'; // Green for fast typing
-    } else if (wpm > 30) {
-      this.elements.typingSpeedDisplay.style.color = '#FFC107'; // Yellow for moderate
-    } else {
-      this.elements.typingSpeedDisplay.style.color = '#F44336'; // Red for slow
-    }
-  }
-
-  private trackTypingSession(text: string): void {
-    const now = Date.now();
-    
-    // Start new session if not already typing
-    if (!this.typingStats.isTyping) {
-      this.typingStats.startTime = now;
-      this.typingStats.characterCount = 0;
-      this.typingStats.isTyping = true;
-    }
-    
-    // Update character count
-    this.typingStats.characterCount = text.length;
-    
-    // Calculate WPM (assuming average word length of 5 characters)
-    if (this.typingStats.startTime) {
-      const minutes = (now - this.typingStats.startTime) / (1000 * 60);
-      this.typingStats.currentWPM = Math.round((text.length / 5) / Math.max(0.1, minutes));
-    }
-    
-    // Update typing speed display
-    this.updateTypingSpeedDisplay();
-  }
-
-  private updateCharacterBar(text: string) {
-    if (!this.elements.characterBarSegments) return;
-    this.elements.characterBarSegments.innerHTML = '';
-    if (!text || text === 'type something…' || !this.hasInteracted) return;
-
-    const letterCount: { [key: string]: number } = {};
-    text.toLowerCase().split('').forEach(char => {
-      // Count all letters and numbers, not just keyboard keys that are loaded
-      if (/[a-z0-9]/.test(char)) {
-        letterCount[char] = (letterCount[char] || 0) + 1;
-      }
-    });
-
-    // Only proceed if we have character counts
-    if (Object.keys(letterCount).length === 0) return;
-
-    // Calculate max characters based on available width
-    const maxChars = this.calculateMaxCharactersForWidth(window.innerWidth);
-
-    const sortedChars = Object.entries(letterCount)
-      .sort(([,a], [,b]) => b - a)
-      .slice(0, maxChars);
-
-    const othersCount = Object.entries(letterCount)
-      .slice(maxChars)
-      .reduce((sum, [,count]) => sum + count, 0);
-
-    sortedChars.forEach(([char, count], index) => {
-      this.addCharacterBarSegment(char, count, index === 0, index === sortedChars.length - 1 && othersCount === 0);
-    });
-
-    if (othersCount > 0) {
-      this.addOthersSegment(othersCount);
-    }
-  }
-
-  private addCharacterBarSegment(char: string, count: number, isFirst: boolean, isLast: boolean) {
-    if (!this.elements.characterBarSegments) return;
-
-    const segment = document.createElement('div');
-    segment.className = 'bar-segment';
-    segment.style.flexGrow = count.toString();
-    
-    // Apply fill color with opacity based on count
-    const fillColor = this.getCharacterFillColor(char, count);
-    segment.style.background = fillColor;
-    
-    if (isFirst) {
-      segment.style.borderTopLeftRadius = '4px';
-      segment.style.borderBottomLeftRadius = '4px';
-    }
-    if (isLast) {
-      segment.style.borderTopRightRadius = '4px';
-      segment.style.borderBottomRightRadius = '4px';
-    }
-
-    const label = document.createElement('div');
-    label.className = 'bar-label';
-    label.textContent = `${char} (${count})`;
-
-    const line = document.createElement('div');
-    line.className = 'bar-line';
-
-    segment.appendChild(line);
-    segment.appendChild(label);
-    this.elements.characterBarSegments.appendChild(segment);
-  }
-
-  private getCharacterFillColor(char: string, count: number): string {
-    // Use character code to create a consistent color
-    const charCode = char.charCodeAt(0);
-    // Create a hue based on the character code (0-360)
-    const hue = (charCode * 137.5) % 360; // Using golden angle for better distribution
-    // Base saturation and lightness with some variation
-    const saturation = 70 + (charCode % 20); // 70-90%
-    const lightness = 50 + (charCode % 10) - 5; // 45-55%
-    
-    // Adjust opacity based on count
-    const opacity = Math.min(0.2 + (count * 0.02), 0.8);
-    
-    return `hsla(${hue}, ${saturation}%, ${lightness}%, ${opacity})`;
-  }
-
-  private addOthersSegment(count: number) {
-    if (!this.elements.characterBarSegments) return;
-
-    const segment = document.createElement('div');
-    segment.className = 'bar-segment';
-    segment.style.flexGrow = count.toString();
-    
-    // Use white fill in dark mode, black in light mode for others segment
-    const othersColor = this.isDarkMode ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.4)';
-    segment.style.background = othersColor;
-    segment.style.borderTopRightRadius = '4px';
-    segment.style.borderBottomRightRadius = '4px';
-
-    const label = document.createElement('div');
-    label.className = 'bar-label';
-    label.textContent = `others (${count})`;
-
-    const line = document.createElement('div');
-    line.className = 'bar-line';
-
-    segment.appendChild(line);
-    segment.appendChild(label);
-    this.elements.characterBarSegments.appendChild(segment);
-  }
-
-  // Single implementation of calculateMaxCharactersForWidth
-  private calculateMaxCharactersForWidth(width: number): number {
-    // Calculate max characters based on available screen width
-    // Each character segment needs ~60-100px minimum for readability
-    // Account for margins and spacing
-    
-    if (width <= 320) return 2;      // Very small phones
-    if (width <= 480) return 3;      // Small phones
-    if (width <= 640) return 4;      // Large phones / small tablets
-    if (width <= 900) return 5;      // Tablets / small desktops
-    if (width <= 1200) return 6;     // Medium desktops
-    return 7;                        // Large desktops
   }
 
   private updateKeyboardFromText(text: string) {
@@ -2471,7 +2259,7 @@ export class UI {
     if (totalChars === 0) return;
     
     // Calculate max characters based on available width
-    const maxChars = this.calculateMaxCharactersForWidth(width);
+    const maxChars = calculateMaxCharactersForWidth(width);
     
     const sortedChars = Object.entries(letterCount)
       .sort(([,a], [,b]) => (b as number) - (a as number));
@@ -2527,7 +2315,7 @@ export class UI {
     const actualWidth = Math.max(width, 2);
     
     // Use the same color generation as the app interface
-    const fillColor = this.getCharacterFillColor(char, count);
+    const fillColor = getCharacterFillColor(char, count);
     
     // Draw filled rectangle with the app's color scheme
     ctx.fillStyle = fillColor;
