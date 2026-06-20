@@ -3,10 +3,16 @@ import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
 import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
 import { Scene } from './scene';
 import type { OpenKeysConfig, ThemeColors } from './config';
+import type { Emitter } from './emitter';
+import type { OpenKeysEvents } from './types';
+
+type Emit = Emitter<OpenKeysEvents>['emit'];
+const noopEmit: Emit = () => {};
 
 export class Keyboard {
   private scene: Scene;
   private config: OpenKeysConfig;
+  private emit: Emit;
   private rowStagger: number;
   private keyGap: number;
   private keyMap: string[][];
@@ -53,9 +59,10 @@ export class Keyboard {
   //   waveRadius: number;
   // };
 
-  constructor(scene: Scene, config: OpenKeysConfig) {
+  constructor(scene: Scene, config: OpenKeysConfig, emit: Emit = noopEmit) {
     this.scene = scene;
     this.config = config;
+    this.emit = emit;
 
     // Keyboard layout comes from config (QWERTY by default)
     this.keyMap = config.layout.rows;
@@ -93,7 +100,7 @@ export class Keyboard {
     // Setup keyboard container
     // Create a container for all keyboard elements
     this.container = new THREE.Group();
-    (this.scene as any).scene.add(this.container);
+    this.scene.scene.add(this.container);
     
     // Initialize rotation animation properties
     this.rotationState = {
@@ -506,20 +513,30 @@ export class Keyboard {
     });
   }
 
-  async clear() {
+  async clear(currentText: string = '') {
     if (this.clearAnimationInProgress) return;
     this.clearAnimationInProgress = true;
 
-    // Get current text to simulate backspace sequence
-    const currentText = this.getCurrentTextFromUI();
     if (currentText && currentText.trim()) {
       await this.animateBackspaceSequence(currentText);
     } else {
       // If no text, just clear all keys normally
       await this.clearAllKeysInstantly();
     }
-    
+
     this.clearAnimationInProgress = false;
+  }
+
+  /** Emit the current display text + per-key data during an animation step. */
+  private emitProgress(text: string) {
+    const { counts, heights } = this.snapshot();
+    this.emit('textchange', {
+      text,
+      length: text.length,
+      max: this.config.features.maxCharacters,
+      source: 'program',
+    });
+    this.emit('data', { text, counts, heights, mode: this.config.data.mode });
   }
 
   async animateTypingSequence(newText: string) {
@@ -529,10 +546,10 @@ export class Keyboard {
     
     // Reset all keys to zero before starting
     this.resetAllKeys();
-    
+
     // Clear current text display first
-    this.updateTextDisplayDuringTyping('');
-    
+    this.emitProgress('');
+
     for (let i = 0; i < chars.length; i++) {
       const char = chars[i];
       const currentText = newText.substring(0, i + 1);
@@ -551,66 +568,12 @@ export class Keyboard {
         this.updateKeyObject(char);
       }
       
-      // Update text display to show character being typed
-      this.updateTextDisplayDuringTyping(currentText);
-      
-      // Update character bar during typing animation
-      this.updateCharacterBarDuringTyping(currentText);
-      
+      // Emit the in-progress text + data for any view modules
+      this.emitProgress(currentText);
+
       // Wait before next key press
       await new Promise(resolve => setTimeout(resolve, currentDelay));
     }
-  }
-
-  private updateCharacterBarDuringTyping(text: string) {
-    // Get reference to UI's character bar update method
-    const characterBarSegments = document.getElementById('characterBarSegments');
-    if (!characterBarSegments) return;
-    
-    // Clear existing segments
-    characterBarSegments.innerHTML = '';
-    
-    if (!text || !text.trim()) return;
-    
-    // Calculate character counts from current text
-    const letterCount: { [key: string]: number } = {};
-    text.toLowerCase().split('').forEach(char => {
-      if (/[a-z0-9]/.test(char)) {
-        letterCount[char] = (letterCount[char] || 0) + 1;
-      }
-    });
-    
-    // Only proceed if we have character counts
-    if (Object.keys(letterCount).length === 0) return;
-    
-    // Get the UI instance to access character bar methods
-    // This is a bit of a hack, but necessary for the animation
-    const event = new CustomEvent('updateCharacterBar', { 
-      detail: { text, letterCount } 
-    });
-    document.dispatchEvent(event);
-  }
-  private updateTextDisplayDuringTyping(text: string) {
-    const textDisplay = document.getElementById('textDisplay');
-    const mobileTextDisplay = document.getElementById('mobileTextDisplay');
-    
-    if (textDisplay) textDisplay.textContent = text;
-    if (mobileTextDisplay) mobileTextDisplay.textContent = text;
-    
-    // Update character count
-    const characterCount = document.getElementById('characterCount');
-    if (characterCount) {
-      characterCount.textContent = `${text.length}/90 characters`;
-    }
-  }
-
-  private getCurrentTextFromUI(): string {
-    // Get text from either desktop or mobile display
-    const textDisplay = document.getElementById('textDisplay');
-    const mobileTextDisplay = document.getElementById('mobileTextDisplay');
-    
-    const text = textDisplay?.textContent || mobileTextDisplay?.textContent || '';
-    return text === 'type something…' ? '' : text;
   }
 
   async animateBackspaceSequence(text: string) {
@@ -628,27 +591,27 @@ export class Keyboard {
       if (this.keyObjects[char]) {
         // Animate key press (down and up)
         await this.animateKeyPress(char);
-        
-        // Update text display to show character being removed
-        this.updateTextDisplayDuringClear(text, chars.length - i - 1);
-        
+
         // CRITICAL: Decrement count and recalculate height based on count
         if (this.keyTypeCounts[char] > 0) {
           this.keyTypeCounts[char]--;
           this.keyHeights[char] = this.growthIncrement * this.keyTypeCounts[char];
           this.updateKeyObject(char);
         }
+
+        // Emit the shrinking text + data to update view modules
+        this.emitProgress(text.substring(0, chars.length - i - 1));
       }
-      
+
       // Wait before next key press
       await new Promise(resolve => setTimeout(resolve, currentDelay));
     }
-    
+
     // Final cleanup - ensure all keys are reset
     await this.clearAllKeysInstantly();
-    
-    // Reset text displays to empty after backspace completes
-    this.updateTextDisplayDuringClear('', 0);
+
+    // Reset view to empty after backspace completes
+    this.emitProgress('');
   }
 
   private async animateKeyPress(key: string) {
@@ -693,21 +656,6 @@ export class Keyboard {
       
       requestAnimationFrame(animate);
     });
-  }
-
-  private updateTextDisplayDuringClear(originalText: string, remainingLength: number) {
-    const remainingText = originalText.substring(0, remainingLength);
-    const textDisplay = document.getElementById('textDisplay');
-    const mobileTextDisplay = document.getElementById('mobileTextDisplay');
-    
-    if (textDisplay) textDisplay.textContent = remainingText;
-    if (mobileTextDisplay) mobileTextDisplay.textContent = remainingText;
-    
-    // Update character count
-    const characterCount = document.getElementById('characterCount');
-    if (characterCount) {
-      characterCount.textContent = `${remainingText.length}/90 characters`;
-    }
   }
 
   private async clearAllKeysInstantly() {

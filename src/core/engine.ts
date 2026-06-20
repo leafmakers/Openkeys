@@ -36,7 +36,7 @@ function deepAssign(target: any, source: any): void {
 export function createEngine(host: HTMLElement, config: OpenKeysConfig): EngineInternal {
   const emitter = createEmitter<OpenKeysEvents>();
   const scene = new Scene(config, host);
-  const keyboard = new Keyboard(scene, config);
+  const keyboard = new Keyboard(scene, config, emitter.emit);
 
   let running = false;
   let rafId = 0;
@@ -152,7 +152,7 @@ export function createEngine(host: HTMLElement, config: OpenKeysConfig): EngineI
     async clear() {
       emitter.emit('typingstart', { text: currentText });
       try {
-        await keyboard.clear();
+        await keyboard.clear(currentText);
         currentText = '';
       } finally {
         emitter.emit('textchange', {

@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
   try {
     const config = resolveConfig({}, new URLSearchParams(window.location.search));
     const engine = createEngine(document.body, config);
+    if (import.meta.env.DEV) (window as any).okEngine = engine; // dev-only debug handle
     new UI(engine, config); // UI builds the app chrome and drives the engine
     engine.start();
 

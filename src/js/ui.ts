@@ -490,12 +490,22 @@ export class UI {
   }
 
   private setupCharacterBarEvents() {
-    // Listen for character bar updates during typing animation
-    document.addEventListener('updateCharacterBar', ((event: Event) => {
-      const customEvent = event as CustomEvent<{ text: string }>;
-      const { text } = customEvent.detail;
-      this.updateCharacterBar(text);
-    }) as EventListener);
+    // View updates now flow from engine events (the keyboard no longer touches the DOM).
+    // `data` drives the frequency bar; `textchange` drives the display text (program/animation
+    // paths only — user keystrokes are left alone to preserve the caret) and the counter.
+    this.engine.on('data', ({ text }: { text: string }) => this.updateCharacterBar(text));
+    this.engine.on(
+      'textchange',
+      ({ text, length, max, source }: { text: string; length: number; max: number; source: string }) => {
+        if (source === 'program') {
+          if (this.elements.textDisplay) this.elements.textDisplay.textContent = text;
+          if (this.elements.mobileTextDisplay) this.elements.mobileTextDisplay.textContent = text;
+        }
+        if (this.elements.characterCount) {
+          this.elements.characterCount.textContent = `${length}/${max} characters`;
+        }
+      }
+    );
   }
 
   private setupButtonListeners() {
@@ -512,7 +522,7 @@ export class UI {
       this.elements.heightDownBtn?.classList.add('active');
       this.elements.heightUpBtn?.classList.remove('active');
       this.keyboard.decreaseHeight();
-      await this.keyboard.clear();
+      await this.engine.clear();
       
       setTimeout(() => {
         // Switch back to Castle being active after clear animation
@@ -529,7 +539,7 @@ export class UI {
       this.elements.heightDownBtn?.classList.add('active');
       this.elements.heightUpBtn?.classList.remove('active');
       
-      await this.keyboard.clear();
+      await this.engine.clear();
       
       setTimeout(() => {
         // Switch back to Castle being active
@@ -2269,9 +2279,10 @@ export class UI {
   private updateKeyboardFromText(text: string) {
     if (this.isUpdating) return;
     this.isUpdating = true;
-    
+
     try {
-      this.keyboard.updateFromText(text);
+      // Route through the engine so it owns currentText and emits data/textchange{user}
+      this.engine.setUserText(text);
     } catch (error) {
       console.error('Error updating keyboard:', error);
     } finally {
