@@ -5,6 +5,28 @@ can see what's happening and why. Newest entries at the top.
 
 ---
 
+## Experimental: full (Mac) keyboard layout — branch `experiment/full-keyboard-layout` (NOT pushed)
+
+**Goal:** the classic board only renders the 36 alphanumeric keys; add the surrounding
+structural keys (modifiers, space bar, punctuation) so it reads as a real keyboard and fills
+out to a clean rectangle — kept modular and instantly toggleable so it's trivial to drop.
+
+- **Width-aware cell model.** `LayoutConfig.rows` accepts `{ id, label, w?, typeable? }` alongside
+  plain strings (a bare string still normalizes to a 1u typeable data key, so QWERTY/AZERTY/
+  Dvorak/Numpad are byte-for-byte unchanged). Keys are now stored by **unique id**, not label, so
+  duplicate modifiers (two shift/cmd/opt/ctrl) don't collide. Key geometry/outlines are
+  variable-width; labels are glyph-tolerant and auto-shrink for multi-char caps.
+- **`full` preset** (`FULL_ROWS` + `LAYOUT_OVERRIDES` in `config.ts`). A Mac-style ~60% board:
+  every row is exactly 15u so the silhouette is rectangular while letters keep their stagger
+  (from edge-key widths, not row offset). Structural keys are inert (`typeable:false`) — only
+  letters/numbers grow. The override re-centres the wider board (`originX/Z`, `rowStagger:0`) and
+  zooms the camera out ~1.5x (`frustum` 80→120 / 45→70) so nothing clips on portrait/mobile.
+- **Toggle:** `?layout=full` or the settings dropdown ("Full (Mac) — experimental"); default
+  stays QWERTY. To remove entirely: delete `FULL_ROWS` + `LAYOUT_OVERRIDES` and the dropdown
+  `<option>`. Verified: `tsc`, `build`, `build:lib` pass; console clean; QWERTY unchanged.
+
+---
+
 ## Modular refactor — extracting feature modules from the `ui.ts` monolith
 
 **Goal:** a pure engine + typed events + composable `(ctx) => teardown` modules, so OpenKeys
