@@ -1,6 +1,7 @@
 import { resolveConfig } from '../core/config';
 import { createEngine } from '../core/engine';
 import { composeModules } from '../core/compose';
+import { textInput } from '../modules/text-input';
 import { characterBar } from '../modules/character-bar';
 import { typingSpeed } from '../modules/typing-speed';
 import { themeToggle } from '../modules/theme-toggle';
@@ -42,6 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Feature modules (gated by config.features). More are extracted in later steps.
     const modules = [
+      config.features.textInput && textInput,
       config.features.characterBar && characterBar,
       config.features.typingSpeed && typingSpeed,
       config.features.themeToggle && themeToggle,
@@ -49,6 +51,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const teardownModules = composeModules(engine, document.body, modules);
 
     new UI(engine, config); // remaining app chrome (still being modularized)
+
+    // Apply initial text (config.text / ?text=) once the keyboard mesh is built.
+    engine.on('ready', () => {
+      if (config.text) engine.setText(config.text);
+    });
     engine.start();
 
     window.addEventListener('pagehide', () => {

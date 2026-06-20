@@ -90,9 +90,6 @@ export class UI {
   private engine: any;
   private keyboard: Record<string, any>;
   private renderer: THREE.WebGLRenderer;
-  private maxCharacters: number;
-  private isUpdating: boolean;
-  private hasInteracted: boolean;
   private elements: UIElements = {
     // Initialize only required properties
     heightUpBtn: null,
@@ -129,9 +126,6 @@ export class UI {
     this.keyboard = engine.keyboard;
     this.renderer = engine.renderer;
     this.config = config;
-    this.maxCharacters = config.features.maxCharacters;
-    this.isUpdating = false;
-    this.hasInteracted = false;
 
     // Initialize elements with all properties
     this.elements = {
@@ -191,16 +185,7 @@ export class UI {
     });
     this.initializeFontFavorites();
     this.applyPosterVisibility();
-
-    // Apply initial text from config (e.g. ?text=...) once the keyboard mesh is ready,
-    // otherwise show the placeholder with a blinking cursor.
-    const initialText = (this.config.text || '').slice(0, this.maxCharacters);
-    if (initialText) {
-      this.hasInteracted = true;
-      this.engine.on('ready', () => this.updateDisplays(initialText));
-    } else {
-      this.updateDisplays('');
-    }
+    // Text display, counter, type-anywhere and initial text are owned by the text-input module.
   }
 
   private setupElements() {
@@ -309,7 +294,7 @@ export class UI {
   /** Build a shareable URL that reproduces the current configuration. */
   private buildShareUrl(overrides: Record<string, string> = {}): string {
     const params = new URLSearchParams();
-    const text = this.getDisplayText();
+    const text = this.engine.currentText;
     if (text) params.set('text', text);
     if (this.config.layout.preset && this.config.layout.preset !== 'qwerty') {
       params.set('layout', this.config.layout.preset);
@@ -437,80 +422,32 @@ export class UI {
 
   private setupEventListeners() {
     this.setupButtonListeners();
-    this.setupTextInputListeners();
     this.setupKeyboardListeners();
     this.setupPreviewListeners();
     this.setupThemeToggle();
     this.setupFontControls();
-    this.setupCharacterBarEvents();
-  }
-
-  private setupCharacterBarEvents() {
-    // The character-bar and typing-speed modules own the bar + WPM via engine events.
-    // This listener keeps the (not-yet-extracted) text display + counter in sync:
-    // `textchange` drives the display text on program/animation paths (user keystrokes
-    // are left alone to preserve the caret) and the counter on every change.
-    this.engine.on(
-      'textchange',
-      ({ text, length, max, source }: { text: string; length: number; max: number; source: string }) => {
-        if (source === 'program') {
-          if (this.elements.textDisplay) this.elements.textDisplay.textContent = text;
-          if (this.elements.mobileTextDisplay) this.elements.mobileTextDisplay.textContent = text;
-        }
-        if (this.elements.characterCount) {
-          this.elements.characterCount.textContent = `${length}/${max} characters`;
-        }
-      }
-    );
   }
 
   private setupButtonListeners() {
+    // Castle / Clear "mode" toggle (↑ ↓). Clear is also exposed via the text-input clear button.
     this.elements.heightUpBtn?.addEventListener('click', () => {
-      // Visual feedback - make Castle button active
       this.elements.heightUpBtn?.classList.add('active');
       this.elements.heightDownBtn?.classList.remove('active');
-      this.keyboard.increaseHeight();
-      this.updateKeyboardFromText(this.getDisplayText());
+      this.engine.setText(this.engine.currentText);
     });
 
     this.elements.heightDownBtn?.addEventListener('click', async () => {
-      // Visual feedback - make Clear button active during animation
       this.elements.heightDownBtn?.classList.add('active');
       this.elements.heightUpBtn?.classList.remove('active');
-      this.keyboard.decreaseHeight();
       await this.engine.clear();
-      
       setTimeout(() => {
-        // Switch back to Castle being active after clear animation
         this.elements.heightUpBtn?.classList.add('active');
         this.elements.heightDownBtn?.classList.remove('active');
-        this.keyboard.increaseHeight();
-        // Reset displays after animation completes
-        this.resetTextDisplays();
-      }, 500);
-    });
-
-    this.elements.clearButton?.addEventListener('click', async () => {
-      // Temporarily activate Clear button during clear operation
-      this.elements.heightDownBtn?.classList.add('active');
-      this.elements.heightUpBtn?.classList.remove('active');
-      
-      await this.engine.clear();
-      
-      setTimeout(() => {
-        // Switch back to Castle being active
-        this.elements.heightUpBtn?.classList.add('active');
-        this.elements.heightDownBtn?.classList.remove('active');
-        this.keyboard.increaseHeight();
-        // Reset displays after animation completes
-        this.resetTextDisplays();
       }, 500);
     });
 
     this.elements.shadowAngle?.addEventListener('input', (e: Event) => {
-      const target = e.target as HTMLInputElement;
-      const angle = (parseInt(target.value) * Math.PI) / 180;
-      this.keyboard.scene.updateLightPosition(angle);
+      this.engine.setLightAngle(parseInt((e.target as HTMLInputElement).value));
     });
   }
 
@@ -1592,111 +1529,14 @@ export class UI {
     }
   }
 
-  private setupTextInputListeners() {
-    const handleInput = (element: HTMLElement) => {
-      if (this.isUpdating) return;
-      
-      const text = element.textContent || '';
-
-      if (!this.hasInteracted && text.trim()) {
-        this.hasInteracted = true;
-      }
-
-      if (text.length > this.maxCharacters) {
-        // Save cursor position before truncating
-        const selection = window.getSelection();
-        let cursorPosition = 0;
-        
-        if (selection && selection.rangeCount > 0) {
-          const range = selection.getRangeAt(0);
-          cursorPosition = range.startOffset;
-        }
-        
-        // Truncate text
-        const truncatedText = text.slice(0, this.maxCharacters);
-        element.textContent = truncatedText;
-        
-        // Restore cursor position (but not beyond the truncated length)
-        const newCursorPosition = Math.min(cursorPosition, truncatedText.length);
-        this.setCursorToEnd(element, newCursorPosition);
-        
-        this.updateDisplays(truncatedText);
-        return;
-      }
-
-      // Skip text update to preserve cursor position during normal typing
-      this.updateDisplays(text, true);
-    };
-
-    [this.elements.textDisplay, this.elements.mobileTextDisplay].forEach(element => {
-      if (!element) return;
-      
-      element.addEventListener('input', () => {
-        handleInput(element);
-      });
-      element.addEventListener('focus', () => {
-        if (!this.hasInteracted) {
-          element.textContent = '';
-          this.updateDisplays('');
-          this.hasInteracted = true;
-        }
-      });
-      element.addEventListener('keydown', (e: KeyboardEvent) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          (e.target as HTMLElement).blur();
-          if (this.config.features.poster) {
-            this.showPreview();
-          }
-        }
-      });
-      element.addEventListener('paste', (e: ClipboardEvent) => {
-        e.preventDefault();
-        const text = e.clipboardData?.getData('text') || '';
-        const cleanText = text.replace(/\n/g, ' ').trim();
-        
-        if (!this.hasInteracted) {
-          this.hasInteracted = true;
-          element.textContent = '';
-        }
-
-        // For mobile, use a simpler approach to avoid cursor issues
-        const isMobile = window.innerWidth <= 480;
-        if (isMobile && element === this.elements.mobileTextDisplay) {
-          const currentText = element.textContent || '';
-          const newText = currentText + cleanText;
-          element.textContent = newText.slice(0, this.maxCharacters);
-        } else {
-          const selection = window.getSelection();
-          if (!selection) return;
-          
-          const range = selection.getRangeAt(0);
-          const cursorPosition = range.startOffset;
-
-          const currentText = element.textContent || '';
-          const newText = currentText.slice(0, cursorPosition) + cleanText + currentText.slice(cursorPosition);
-          element.textContent = newText.slice(0, this.maxCharacters);
-        }
-        
-        this.updateDisplays(element.textContent || '');
-      });
-    });
-  }
-
   private setupKeyboardListeners() {
-    document.addEventListener('keydown', (e: KeyboardEvent) => {
-      // Don't capture keystrokes while the poster preview is open or an input is focused
-      const previewModal = document.getElementById('previewModal');
-      const isModalOpen = previewModal?.style.display === 'block';
-      const isInputFocused = document.activeElement?.tagName === 'INPUT' ||
-                            document.activeElement?.tagName === 'TEXTAREA' ||
-                            this.elements.textDisplay?.matches(':focus') ||
-                            this.elements.mobileTextDisplay?.matches(':focus');
-
-      if (!isInputFocused && !isModalOpen) {
-        this.handleUnfocusedKeyPress(e);
-      }
-    });
+    // Preview triggers (the poster module will own these once extracted).
+    const isInputFocused = () =>
+      document.activeElement?.tagName === 'INPUT' ||
+      document.activeElement?.tagName === 'TEXTAREA' ||
+      this.elements.textDisplay?.matches(':focus') ||
+      this.elements.mobileTextDisplay?.matches(':focus');
+    const isModalOpen = () => document.getElementById('previewModal')?.style.display === 'block';
 
     document.addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === 'Enter') {
@@ -1704,59 +1544,13 @@ export class UI {
       }
     });
 
-    // Add spacebar trigger for Preview & Print (desktop only)
+    // Spacebar → preview (desktop only, when not typing)
     document.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.key === ' ' || e.code === 'Space') {
-        // Don't trigger preview while it's already open or an input is focused
-        const previewModal = document.getElementById('previewModal');
-        const isModalOpen = previewModal?.style.display === 'block';
-        const isInputFocused = document.activeElement?.tagName === 'INPUT' ||
-                              document.activeElement?.tagName === 'TEXTAREA' ||
-                              this.elements.textDisplay?.matches(':focus') ||
-                              this.elements.mobileTextDisplay?.matches(':focus');
-
-        // Only trigger if not focused on any inputs, modal not open, and not on mobile
-        if (!isInputFocused && !isModalOpen && window.innerWidth > 480) {
-          e.preventDefault();
-          this.showPreview();
-        }
+      if ((e.key === ' ' || e.code === 'Space') && !isInputFocused() && !isModalOpen() && window.innerWidth > 480) {
+        e.preventDefault();
+        this.showPreview();
       }
     });
-
-    // Add double tap detection for mobile
-    this.setupMobileDoubleTap();
-  }
-
-  private handleUnfocusedKeyPress(e: KeyboardEvent) {
-    const key = e.key.toLowerCase();
-    const currentText = this.getDisplayText();
-    
-    if (e.key === 'Backspace') {
-      if (currentText) {
-        this.updateDisplays(currentText.slice(0, -1));
-      }
-      return;
-    }
-
-    // Skip space handling here since it's handled in setupKeyboardListeners for preview trigger
-    if ((key === ' ' || e.code === 'Space') && window.innerWidth <= 480) {
-      e.preventDefault();
-      if (currentText.length < this.maxCharacters) {
-        const newText = this.hasInteracted ? currentText + ' ' : ' ';
-        this.updateDisplays(newText);
-        this.hasInteracted = true;
-      }
-      return;
-    }
-
-    if (this.keyboard.keyObjects[key] && currentText.length < this.maxCharacters) {
-      this.hasInteracted = true;
-      this.updateDisplays(currentText + key);
-    }
-  }
-
-  private setupMobileDoubleTap() {
-    // Implementation for mobile double tap
   }
 
   private setupPreviewListeners() {
@@ -1802,107 +1596,6 @@ export class UI {
     });
   }
 
-  private getDisplayText(): string {
-    const text = this.elements.textDisplay?.textContent?.trim() || '';
-    return this.hasInteracted ? text : '';
-  }
-
-  private updateDisplays(text: string, skipTextUpdate = false) {
-    const displayText = !this.hasInteracted && !text
-      ? 'type something…'
-      : text;
-    
-    // Set placeholder attribute for blinking cursor
-    const isPlaceholder = !this.hasInteracted && !text;
-    
-    // Only update textContent if explicitly requested (to avoid cursor reset)
-    if (!skipTextUpdate) {
-      if (this.elements.textDisplay) {
-        this.elements.textDisplay.textContent = displayText;
-        if (isPlaceholder) {
-          this.elements.textDisplay.setAttribute('data-placeholder', 'true');
-        } else {
-          this.elements.textDisplay.removeAttribute('data-placeholder');
-        }
-      }
-      if (this.elements.mobileTextDisplay) {
-        this.elements.mobileTextDisplay.textContent = displayText;
-        if (isPlaceholder) {
-          this.elements.mobileTextDisplay.setAttribute('data-placeholder', 'true');
-        } else {
-          this.elements.mobileTextDisplay.removeAttribute('data-placeholder');
-        }
-      }
-    } else {
-      // Just update placeholder attributes without touching textContent
-      if (this.elements.textDisplay) {
-        if (isPlaceholder) {
-          this.elements.textDisplay.setAttribute('data-placeholder', 'true');
-        } else {
-          this.elements.textDisplay.removeAttribute('data-placeholder');
-        }
-      }
-      if (this.elements.mobileTextDisplay) {
-        if (isPlaceholder) {
-          this.elements.mobileTextDisplay.setAttribute('data-placeholder', 'true');
-        } else {
-          this.elements.mobileTextDisplay.removeAttribute('data-placeholder');
-        }
-      }
-    }
-
-    // Counter, bar and WPM are now driven by engine events (character-bar / typing-speed modules
-    // + the textchange listener). updateDisplays only owns the editable text + placeholder.
-    this.updateKeyboardFromText(text);
-  }
-
-  private resetTextDisplays() {
-    this.hasInteracted = false;
-    
-    // Clear text displays without forcing cursor position
-    if (this.elements.textDisplay) {
-      this.elements.textDisplay.textContent = '';
-      this.elements.textDisplay.removeAttribute('data-placeholder');
-      // Force text direction
-      this.elements.textDisplay.style.direction = 'ltr';
-      this.elements.textDisplay.style.textAlign = 'left';
-    }
-    if (this.elements.mobileTextDisplay) {
-      this.elements.mobileTextDisplay.textContent = '';
-      this.elements.mobileTextDisplay.removeAttribute('data-placeholder');  
-      // Force text direction
-      this.elements.mobileTextDisplay.style.direction = 'ltr';
-      this.elements.mobileTextDisplay.style.textAlign = 'left';
-    }
-    
-    this.updateDisplays('');
-  }
-
-
-  private setCursorToEnd(element: HTMLElement, position?: number) {
-    try {
-      const range = document.createRange();
-      const selection = window.getSelection();
-      
-      if (element.childNodes.length > 0) {
-        const textNode = element.childNodes[0];
-        const textLength = textNode.textContent?.length || 0;
-        const cursorPos = position !== undefined ? Math.min(position, textLength) : textLength;
-        range.setStart(textNode, cursorPos);
-        range.setEnd(textNode, cursorPos);
-      } else {
-        range.setStart(element, 0);
-        range.setEnd(element, 0);
-      }
-      
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-    } catch (error) {
-      // Ignore cursor positioning errors
-      console.debug('Could not set cursor to end:', error);
-    }
-  }
-
   private hidePreview(): void {
     if (this.elements.previewModal) {
       this.elements.previewModal.style.display = 'none';
@@ -1916,7 +1609,7 @@ export class UI {
       
       // Create download link
       const link = document.createElement('a');
-      const currentText = this.getDisplayText();
+      const currentText = this.engine.currentText;
       const fileName = currentText 
         ? `keycastle-poster-${currentText.substring(0, 20).replace(/[^a-zA-Z0-9]/g, '-')}.png`
         : 'keycastle-poster.png';
@@ -2038,20 +1731,6 @@ export class UI {
     ctx.restore();
   }
 
-  private updateKeyboardFromText(text: string) {
-    if (this.isUpdating) return;
-    this.isUpdating = true;
-
-    try {
-      // Route through the engine so it owns currentText and emits data/textchange{user}
-      this.engine.setUserText(text);
-    } catch (error) {
-      console.error('Error updating keyboard:', error);
-    } finally {
-      this.isUpdating = false;
-    }
-  }
-
   private generatePosterImage(): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -2066,7 +1745,7 @@ export class UI {
     ctx.drawImage(this.renderer.domElement, 0, 0);
     
     // Add text overlay
-    const text = this.getDisplayText();
+    const text = this.engine.currentText;
     if (text) {
       this.drawPosterText(ctx, text, width, height);
     }

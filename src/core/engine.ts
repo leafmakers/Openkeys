@@ -108,6 +108,10 @@ export function createEngine(host: HTMLElement, config: OpenKeysConfig): EngineI
       return emitter.on(event, fn);
     },
 
+    hasKey(label) {
+      return keyboard.hasKey(label);
+    },
+
     setText(text) {
       currentText = text;
       keyboard.updateFromText(text);

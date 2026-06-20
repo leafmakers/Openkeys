@@ -87,6 +87,9 @@ export interface OpenKeysEngine {
 
   on<K extends EventName>(event: K, fn: (payload: OpenKeysEvents[K]) => void): Unsubscribe;
 
+  /** Whether a label has a key in the current layout (for type-anywhere). */
+  hasKey(label: string): boolean;
+
   /** Programmatic text set — synchronous keyboard update; emits textchange{program} + data. */
   setText(text: string): void;
   /** User-path text set — drives keyboard + emits data + textchange{user} (no DOM write-back). */
