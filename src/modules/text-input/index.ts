@@ -107,9 +107,11 @@ export const textInput: OpenKeysModule = ({ engine, host, signal }) => {
   textDisplay.addEventListener(
     'focus',
     () => {
+      // Clear the placeholder to a genuinely empty field — do NOT route through
+      // writeDisplay() here, or it would re-insert PLACEHOLDER as editable text.
       if (!hasInteracted) {
         textDisplay.textContent = '';
-        writeDisplay('');
+        setPlaceholderAttr(false);
       }
     },
     { signal }
@@ -137,7 +139,7 @@ export const textInput: OpenKeysModule = ({ engine, host, signal }) => {
       const cursor = sel && sel.rangeCount > 0 ? sel.getRangeAt(0).startOffset : (textDisplay.textContent || '').length;
       const cur = textDisplay.textContent || '';
       textDisplay.textContent = (cur.slice(0, cursor) + clean + cur.slice(cursor)).slice(0, maxChars());
-      setCursorToEnd();
+      setCursorToEnd(Math.min(cursor + clean.length, (textDisplay.textContent || '').length));
       applyText(textDisplay.textContent || '');
     },
     { signal }
@@ -227,7 +229,7 @@ export const textInput: OpenKeysModule = ({ engine, host, signal }) => {
   );
 
   // --- React to programmatic/animation changes from the engine ---
-  engine.on('textchange', ({ text, length, max, source }) => {
+  const offTextChange = engine.on('textchange', ({ text, length, max, source }) => {
     if (source === 'program') {
       hasInteracted = text !== '';
       writeDisplay(text);
@@ -240,6 +242,7 @@ export const textInput: OpenKeysModule = ({ engine, host, signal }) => {
   if (counter) counter.textContent = `${(engine.currentText || '').length}/${maxChars()} characters`;
 
   return () => {
+    offTextChange();
     document.documentElement.style.removeProperty('--kb-inset');
   };
 };

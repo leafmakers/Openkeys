@@ -206,6 +206,8 @@ export const fontLibrary: OpenKeysModule = ({ engine, host, signal }) => {
     const index = favoriteFonts.findIndex((f) => f.id === fontId);
     if (index === -1) return;
     favoriteFonts.splice(index, 1);
+    // Keep the active font fixed: a removal before the cursor shifts it down one.
+    if (index < currentFontIndex) currentFontIndex--;
     if (currentFontIndex >= favoriteFonts.length) currentFontIndex = favoriteFonts.length - 1;
     persistFavoriteFonts();
     renderFavoriteChips();

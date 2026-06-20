@@ -21,7 +21,7 @@ export const settingsPanel: OpenKeysModule = ({ engine, host, signal }) => {
   const toggle = resolve(host, 'settings-toggle', 'settingsToggle');
   if (!engine.config.features.settingsPanel) {
     toggle?.classList.add('hidden');
-    return () => {}; // shadow-angle listener is removed via the shared AbortSignal
+    return () => {}; // nothing wired when the settings panel is disabled
   }
 
   let panel: HTMLElement | null = null;
