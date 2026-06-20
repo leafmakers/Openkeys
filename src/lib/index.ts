@@ -76,12 +76,29 @@ export function createOpenKeys(
   });
 }
 
-/** `<open-keys text="..." layout="qwerty|azerty|dvorak|numpad" theme="light|dark">` */
+/**
+ * `<open-keys text="..." layout="qwerty|azerty|dvorak|numpad" theme="light|dark"
+ *   modules="font-library,poster,...">`
+ *
+ * Modules are engine-only by default. Naming modules opts them in (resolved from
+ * MODULE_REGISTRY); unknown names are ignored. Note most modules expect specific
+ * markup (a text field, the drawer, the modal) inside the element — provide it,
+ * or stick to the bare 3D visualization.
+ */
 export class OpenKeysElement extends HTMLElement {
   private instance: OpenKeysInstance | null = null;
 
   static get observedAttributes() {
     return ['text', 'layout', 'theme'];
+  }
+
+  private readModules(): OpenKeysModule[] {
+    const attr = this.getAttribute('modules');
+    if (!attr) return [];
+    return attr
+      .split(',')
+      .map((name) => MODULE_REGISTRY[name.trim()])
+      .filter(Boolean) as OpenKeysModule[];
   }
 
   private readConfig(): DeepPartial<OpenKeysConfig> {
@@ -108,7 +125,7 @@ export class OpenKeysElement extends HTMLElement {
     container.style.position = 'relative';
     this.appendChild(container);
 
-    this.instance = createOpenKeys(container, this.readConfig());
+    this.instance = createOpenKeys(container, this.readConfig(), this.readModules());
   }
 
   disconnectedCallback() {
