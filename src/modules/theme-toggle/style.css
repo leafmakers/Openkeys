@@ -1,2 +1,2 @@
-/* theme-toggle styles — consolidated here during CSS sharding (Step 8).
-   Until then #navbarActions button rules live in styles/main.css. */
+/* theme-toggle — the navbar light/dark button. Its visual styling is shared
+   navbar-button styling in base.css (#navbarActions button); nothing module-private. */

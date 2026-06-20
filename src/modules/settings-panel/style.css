@@ -1,4 +1,110 @@
-/* settings-panel — gear-button slide-over styles.
-   Live styles currently ship from src/styles/main.css (.settings-panel, .settings-header,
-   .settings-field, .settings-segment, .settings-check, .settings-share, …); they move
-   here in the CSS-sharding step. */
+/* settings-panel — the gear-button slide-over. */
+
+/* Settings panel */
+.settings-panel {
+  position: fixed;
+  top: 72px;
+  right: 16px;
+  width: 280px;
+  max-width: calc(100vw - 32px);
+  background: var(--bg-color);
+  color: var(--text-color);
+  border: 1px solid var(--input-border);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+  padding: 16px;
+  z-index: 1600;
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.settings-panel.open {
+  display: flex;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.settings-close {
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-color);
+}
+
+.settings-field,
+.settings-check {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.settings-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.settings-field > span {
+  opacity: 0.7;
+}
+
+.settings-field select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--input-text);
+  font-size: 14px;
+}
+
+.settings-segment {
+  display: flex;
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.settings-segment button {
+  flex: 1;
+  padding: 8px;
+  border: none;
+  background: var(--button-default-bg);
+  color: var(--button-default-color);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.settings-segment button.active {
+  background: var(--button-primary-bg);
+  color: var(--button-primary-color);
+}
+
+.settings-share {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--button-primary-border);
+  background: var(--button-primary-bg);
+  color: var(--button-primary-color);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.settings-hint {
+  margin: 0;
+  font-size: 11px;
+  opacity: 0.55;
+  line-height: 1.4;
+}

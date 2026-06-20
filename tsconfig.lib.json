@@ -9,10 +9,10 @@
     "rootDir": "src"
   },
   "include": [
-    "src/lib/index.ts",
-    "src/js/config.ts",
-    "src/js/scene.ts",
-    "src/js/keyboard.ts",
+    "src/lib",
+    "src/core",
+    "src/modules",
+    "src/shared",
     "src/vite-env.d.ts"
   ],
   "exclude": ["node_modules"]

@@ -1,2 +1,8 @@
-/* typing-speed styles — consolidated here during CSS sharding (Step 8).
-   Until then the #typingSpeed rules live in styles/main.css. */
+/* typing-speed — live WPM readout. */
+
+#typingSpeed {
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  color: var(--text-color);
+  text-align: left;
+}

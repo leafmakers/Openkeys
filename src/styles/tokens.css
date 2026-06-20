@@ -1,0 +1,97 @@
+/* OpenKeys design tokens — CSS custom properties (light + dark), the Inter
+   webfont import, and the bare body/canvas reset. Loaded first, globally. */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* Base styles */
+body {
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg-color);
+  touch-action: none;
+  transition: background-color 0.3s ease;
+}
+
+:root {
+  /* Light theme default colors */
+  --bg-color: #ffffff;
+  --text-color: #3c4142;
+  --border-color: #3c4142;
+  --accent-color: #3c4142;
+  
+  /* Button states - Light theme */
+  --button-default-bg: #ffffff;
+  --button-default-color: #3c4142;
+  --button-default-border: rgba(60, 65, 66, 0.4);
+  
+  --button-hover-bg: #ffffff;
+  --button-hover-color: #3c4142;
+  --button-hover-border: rgba(60, 65, 66, 0.4);
+  
+  --button-active-bg: #ffffff;
+  --button-active-color: #3c4142;
+  --button-active-border: rgba(60, 65, 66, 0.4);
+  
+  --button-primary-bg: #2a2a2a;
+  --button-primary-color: #ffffff;
+  --button-primary-border: rgba(42, 42, 42, 0.4);
+  
+  --button-primary-hover-bg: #2a2a2a;
+  --button-primary-hover-color: #ffffff;
+  --button-primary-hover-border: rgba(42, 42, 42, 0.4);
+  
+  /* Input elements - Light theme */
+  --input-bg: #ffffff;
+  --input-border: rgba(60, 65, 66, 0.4);
+  --input-text: #3c4142;
+  
+  /* Slider specific - Light theme */
+  --slider-track: rgba(255, 255, 255, 0.25);
+  --slider-thumb: rgba(60, 65, 66, 1.0);
+  --slider-border: rgba(60, 65, 66, 0);
+  --slider-fill: rgba(60, 65, 66, 0.12);
+}
+
+/* Dark theme colors */
+[data-theme="dark"] {
+  --bg-color: #252525;
+  --text-color: #ffffff;
+  --border-color: #ffffff;
+  --accent-color: #ffffff;
+  
+  /* Button states - Dark theme */
+  --button-default-bg: #252525;
+  --button-default-color: #ffffff;
+  --button-default-border: rgba(255, 255, 255, 0.2);
+  
+  --button-hover-bg: #252525;
+  --button-hover-color: #ffffff;
+  --button-hover-border: rgba(255, 255, 255, 0.4);
+  
+  --button-active-bg: #252525;
+  --button-active-color: #ffffff;
+  --button-active-border: rgba(255, 255, 255, 0.4);
+  
+  --button-primary-bg: #ffffff;
+  --button-primary-color: #252525;
+  --button-primary-border: rgba(255, 255, 255, 0.4);
+  
+  --button-primary-hover-bg: #ffffff;
+  --button-primary-hover-color: #252525;
+  --button-primary-hover-border: rgba(255, 255, 255, 0.4);
+  
+  /* Input elements - Dark theme */
+  --input-bg: #252525;
+  --input-border: rgba(255, 255, 255, 0.4);
+  --input-text: #ffffff;
+  
+  /* Slider specific - Dark theme */
+  --slider-track: rgba(37, 37, 37, 0.25);
+  --slider-thumb: rgba(255, 255, 255, 1.0);
+  --slider-border: rgba(255, 255, 255, 0.12);
+  --slider-fill: rgba(255, 255, 255, 0.12);
+}
+
+canvas {
+  display: block;
+}

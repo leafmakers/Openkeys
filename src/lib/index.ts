@@ -20,6 +20,31 @@ import { composeModules } from '../core/compose';
 import { resolveConfig, LAYOUT_PRESETS, type OpenKeysConfig, type DeepPartial } from '../core/config';
 import type { OpenKeysEngine, OpenKeysModule } from '../core/types';
 
+import { textInput } from '../modules/text-input';
+import { characterBar } from '../modules/character-bar';
+import { typingSpeed } from '../modules/typing-speed';
+import { themeToggle } from '../modules/theme-toggle';
+import { poster } from '../modules/poster';
+import { settingsPanel } from '../modules/settings-panel';
+import { fontLibrary } from '../modules/font-library';
+
+/**
+ * The built-in feature modules, keyed by the name used in `<open-keys modules="…">`.
+ * Most expect specific DOM (text field, drawer, modal); compose them only when the
+ * host element provides matching markup. The bare engine works with none of them.
+ */
+export const MODULE_REGISTRY: Record<string, OpenKeysModule> = {
+  'text-input': textInput,
+  'character-bar': characterBar,
+  'typing-speed': typingSpeed,
+  'theme-toggle': themeToggle,
+  'font-library': fontLibrary,
+  poster,
+  'settings-panel': settingsPanel,
+};
+
+export { textInput, characterBar, typingSpeed, themeToggle, poster, settingsPanel, fontLibrary };
+
 export type OpenKeysInstance = OpenKeysEngine & { exportPoster(): string };
 
 /**
