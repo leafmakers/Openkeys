@@ -16,14 +16,14 @@
  *   <open-keys text="hello" layout="dvorak" theme="dark"></open-keys>
  */
 
-import { Scene } from '../js/scene';
-import { Keyboard } from '../js/keyboard';
+import { Scene } from '../core/scene';
+import { Keyboard } from '../core/keyboard';
 import {
   resolveConfig,
   LAYOUT_PRESETS,
   type OpenKeysConfig,
   type DeepPartial,
-} from '../js/config';
+} from '../core/config';
 
 export interface OpenKeysInstance {
   /** Re-render heights from a text string (frequency mode). */
@@ -170,4 +170,4 @@ if (typeof customElements !== 'undefined' && !customElements.get('open-keys')) {
 }
 
 // Re-export the config surface so embedders can build configs with full types.
-export * from '../js/config';
+export * from '../core/config';

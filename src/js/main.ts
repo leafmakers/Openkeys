@@ -1,7 +1,7 @@
-import { Scene } from './scene';
-import { Keyboard } from './keyboard';
+import { Scene } from '../core/scene';
+import { Keyboard } from '../core/keyboard';
 import { UI } from './ui';
-import { resolveConfig } from './config';
+import { resolveConfig } from '../core/config';
 
 class Application {
   private scene: Scene | null;

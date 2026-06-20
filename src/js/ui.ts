@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { OpenKeysConfig } from './config';
+import type { OpenKeysConfig } from '../core/config';
 
 interface UIElements {
   // Core UI Elements
