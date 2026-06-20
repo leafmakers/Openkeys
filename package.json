@@ -1,20 +1,38 @@
 {
-  "name": "keyboard-city",
+  "name": "openkeys",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
+  "description": "Type a phrase and watch a 3D keyboard rise into a skyline — a configurable, embeddable typographic data-sculpture & poster generator.",
+  "license": "MIT",
+  "main": "./dist-lib/openkeys.umd.js",
+  "module": "./dist-lib/openkeys.es.js",
+  "types": "./dist-lib/types/lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist-lib/types/lib/index.d.ts",
+      "import": "./dist-lib/openkeys.es.js",
+      "require": "./dist-lib/openkeys.umd.js"
+    }
+  },
+  "files": [
+    "dist-lib"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.lib.json",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.53.0",
     "@types/three": "^0.162.0",
-    "openai": "^4.28.0",
+    "three": "^0.162.0"
+  },
+  "peerDependencies": {
     "three": "^0.162.0"
   },
   "devDependencies": {
+    "@types/node": "^20.19.43",
     "typescript": "^5.3.3",
     "vite": "^5.0.8"
   }

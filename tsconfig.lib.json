@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "allowImportingTsExtensions": false,
+    "outDir": "dist-lib/types",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/lib/index.ts",
+    "src/js/config.ts",
+    "src/js/scene.ts",
+    "src/js/keyboard.ts",
+    "src/vite-env.d.ts"
+  ],
+  "exclude": ["node_modules"]
+}

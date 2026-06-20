@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { authService } from './auth';
+import type { OpenKeysConfig } from './config';
 
 interface UIElements {
   // Core UI Elements
@@ -84,6 +84,8 @@ interface FavoriteFont {
 
 export class UI {
   private isDarkMode: boolean = false;
+  private config: OpenKeysConfig;
+  private settingsPanelEl: HTMLElement | null = null;
   private keyboard: Record<string, any>;
   private renderer: THREE.WebGLRenderer;
   private maxCharacters: number;
@@ -101,7 +103,6 @@ export class UI {
     characterBarSegments: null,
     warning: null
   };
-  private aiButtonFirstUse: boolean;
   private favoriteFonts: FavoriteFont[];
   private readonly maxFavoriteFonts: number = 5;
   private googleFontsCatalog: GoogleFont[];
@@ -128,22 +129,14 @@ export class UI {
     isTyping: boolean;
   };
 
-  constructor(keyboard: any, renderer: any) {
+  constructor(keyboard: any, renderer: any, config: OpenKeysConfig) {
     this.keyboard = keyboard;
     this.renderer = renderer;
-    this.maxCharacters = 90;
+    this.config = config;
+    this.maxCharacters = config.features.maxCharacters;
     this.isUpdating = false;
     this.hasInteracted = false;
-    
-    // Setup click-to-type functionality (desktop only) after a short delay
-    // to ensure keyboard is fully initialized
-    if (window.innerWidth > 480) {
-      setTimeout(() => {
-        this.keyboard.setupClickToType(renderer);
-        this.keyboard.setOnKeyClickCallback((key: string) => this.handleKeyClick(key));
-      }, 1000);
-    }
-    
+
     // Initialize elements with all properties
     this.elements = {
       // Required properties
@@ -187,7 +180,6 @@ export class UI {
       previewAndPrint: document.getElementById('previewAndPrint'),
       shadowAngle: document.getElementById('shadowAngle') as HTMLInputElement | null
     };
-    this.aiButtonFirstUse = true;
     this.favoriteFonts = [];
     this.googleFontsCatalog = [];
     this.fontDrawerInitialized = false;
@@ -202,12 +194,19 @@ export class UI {
     };
     this.setupElements();
     this.setupEventListeners();
-    this.setupAuthenticationSystem();
     this.loadThemePreference();
     this.initializeFontFavorites();
-    
-    // Set initial placeholder state with blinking cursor
-    this.updateDisplays('');
+    this.applyPosterVisibility();
+
+    // Apply initial text from config (e.g. ?text=...) once the keyboard mesh is ready,
+    // otherwise show the placeholder with a blinking cursor.
+    const initialText = (this.config.text || '').slice(0, this.maxCharacters);
+    if (initialText) {
+      this.hasInteracted = true;
+      this.keyboard.setOnReady(() => this.updateDisplays(initialText));
+    } else {
+      this.updateDisplays('');
+    }
   }
 
   private setupElements() {
@@ -258,58 +257,7 @@ export class UI {
       typingSpeed: document.getElementById('typingSpeed')
     };
 
-    this.setupAIButtonListener();
     this.setupAZScrollGuide();
-  }
-
-  // Removed unused createAIButton method
-
-  private async modifyTextWithAI(text: string): Promise<string> {
-    try {
-      // Use environment variables for function URL (auth not required)
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const accessToken = authService.getAccessToken();
-      if (!supabaseUrl) {
-        throw new Error('Server not configured. Please set VITE_SUPABASE_URL.');
-      }
-      const fetchUrl = `${supabaseUrl}/functions/v1/openai`;
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
-      const response = await fetch(fetchUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ text })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Server error: ${response.status} - ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      if (!data.text) {
-        throw new Error('No text received from the server');
-      }
-
-      return data.text;
-    } catch (error) {
-      console.error('AI Text Generation Error:', error);
-      
-      let errorMessage = 'Unable to generate text. Please try again.';
-      
-      if (error instanceof Error) {
-        if (error.message.includes('Failed to fetch')) {
-          errorMessage = 'Network error. Please check your connection and try again.';
-        } else if (error.message === 'Please enter some text first') {
-          errorMessage = error.message;
-        } else if (error.message.includes('Server not configured')) {
-          errorMessage = error.message;
-        }
-      }
-      
-      this.showError(errorMessage);
-      return text;
-    }
   }
 
   private showError(message: string, isError: boolean = true) {
@@ -360,22 +308,161 @@ export class UI {
   }
 
   private loadThemePreference() {
+    // Precedence: explicit ?theme= URL param (already merged into config) > saved pref > config default
+    const urlHasTheme = new URLSearchParams(window.location.search).has('theme');
     const savedTheme = localStorage.getItem('theme');
-    this.isDarkMode = savedTheme === 'dark';
+    if (urlHasTheme) {
+      this.isDarkMode = this.config.theme.mode === 'dark';
+    } else if (savedTheme) {
+      this.isDarkMode = savedTheme === 'dark';
+    } else {
+      this.isDarkMode = this.config.theme.mode === 'dark';
+    }
     this.applyTheme();
   }
 
-  private applyTheme() {
-    if (this.isDarkMode) {
-      document.documentElement.setAttribute('data-theme', 'dark');
-      document.body.style.background = '#000000';
-      this.keyboard.scene.scene.background = new THREE.Color(0x000000);
-    } else {
-      document.documentElement.setAttribute('data-theme', 'light');
-      document.body.style.background = '#fcfaf6';
-      this.keyboard.scene.scene.background = new THREE.Color('#fcfaf6');
+  /** Public theme toggle used by the navbar button. */
+  toggleTheme() {
+    this.isDarkMode = !this.isDarkMode;
+    this.applyTheme();
+  }
+
+  /** Build a shareable URL that reproduces the current configuration. */
+  private buildShareUrl(overrides: Record<string, string> = {}): string {
+    const params = new URLSearchParams();
+    const text = this.getDisplayText();
+    if (text) params.set('text', text);
+    if (this.config.layout.preset && this.config.layout.preset !== 'qwerty') {
+      params.set('layout', this.config.layout.preset);
     }
-    
+    params.set('theme', this.isDarkMode ? 'dark' : 'light');
+    if (!this.config.animation.intro.enabled) params.set('intro', '0');
+    if (!this.config.features.poster) params.set('poster', '0');
+    for (const [k, v] of Object.entries(overrides)) {
+      if (v === null || v === undefined || v === '') params.delete(k);
+      else params.set(k, v);
+    }
+    const qs = params.toString();
+    return `${location.origin}${location.pathname}${qs ? '?' + qs : ''}`;
+  }
+
+  private applyPosterVisibility() {
+    const show = this.config.features.poster;
+    if (this.elements.previewAndPrint) {
+      (this.elements.previewAndPrint as HTMLElement).style.display = show ? '' : 'none';
+    }
+  }
+
+  private toggleSettingsPanel() {
+    if (!this.settingsPanelEl) this.setupSettingsPanel();
+    if (this.settingsPanelEl) {
+      this.settingsPanelEl.classList.toggle('open');
+    }
+  }
+
+  private setupSettingsPanel() {
+    if (this.settingsPanelEl) return;
+
+    const panel = document.createElement('div');
+    panel.id = 'settingsPanel';
+    panel.className = 'settings-panel';
+    panel.innerHTML = `
+      <div class="settings-header">
+        <span>Settings</span>
+        <button id="settingsClose" class="settings-close" aria-label="Close settings">×</button>
+      </div>
+      <label class="settings-field">
+        <span>Keyboard layout</span>
+        <select id="settingsLayout">
+          <option value="qwerty">QWERTY</option>
+          <option value="azerty">AZERTY</option>
+          <option value="dvorak">Dvorak</option>
+          <option value="numpad">Numpad</option>
+        </select>
+      </label>
+      <div class="settings-field">
+        <span>Theme</span>
+        <div class="settings-segment" id="settingsTheme">
+          <button data-theme="light">Light</button>
+          <button data-theme="dark">Dark</button>
+        </div>
+      </div>
+      <label class="settings-check">
+        <input type="checkbox" id="settingsIntro" />
+        <span>Intro spin animation</span>
+      </label>
+      <label class="settings-check">
+        <input type="checkbox" id="settingsPoster" />
+        <span>Show "Preview Poster" button</span>
+      </label>
+      <button id="settingsShare" class="settings-share">Copy shareable link</button>
+      <p class="settings-hint">Layout changes reload the page with your text preserved.</p>
+    `;
+    document.body.appendChild(panel);
+    this.settingsPanelEl = panel;
+
+    // Initialize control state
+    const layoutSel = panel.querySelector('#settingsLayout') as HTMLSelectElement;
+    layoutSel.value = this.config.layout.preset || 'qwerty';
+    const introChk = panel.querySelector('#settingsIntro') as HTMLInputElement;
+    introChk.checked = this.config.animation.intro.enabled;
+    const posterChk = panel.querySelector('#settingsPoster') as HTMLInputElement;
+    posterChk.checked = this.config.features.poster;
+    this.syncThemeSegment();
+
+    // Wire controls
+    panel.querySelector('#settingsClose')?.addEventListener('click', () => this.toggleSettingsPanel());
+
+    layoutSel.addEventListener('change', () => {
+      // Structural change → reload with the new layout (text preserved via URL)
+      location.assign(this.buildShareUrl({ layout: layoutSel.value === 'qwerty' ? '' : layoutSel.value }));
+    });
+
+    panel.querySelector('#settingsTheme')?.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('button[data-theme]') as HTMLElement | null;
+      if (!btn) return;
+      const wantDark = btn.dataset.theme === 'dark';
+      if (wantDark !== this.isDarkMode) this.toggleTheme();
+      this.syncThemeSegment();
+    });
+
+    introChk.addEventListener('change', () => {
+      location.assign(this.buildShareUrl({ intro: introChk.checked ? '' : '0' }));
+    });
+
+    posterChk.addEventListener('change', () => {
+      this.config.features.poster = posterChk.checked;
+      this.applyPosterVisibility();
+    });
+
+    const shareBtn = panel.querySelector('#settingsShare') as HTMLButtonElement;
+    shareBtn.addEventListener('click', async () => {
+      const url = this.buildShareUrl();
+      try {
+        await navigator.clipboard.writeText(url);
+        shareBtn.textContent = 'Copied!';
+        setTimeout(() => (shareBtn.textContent = 'Copy shareable link'), 1500);
+      } catch {
+        this.showError(url, false);
+      }
+    });
+  }
+
+  private syncThemeSegment() {
+    if (!this.settingsPanelEl) return;
+    this.settingsPanelEl.querySelectorAll('#settingsTheme button').forEach((b) => {
+      const el = b as HTMLElement;
+      el.classList.toggle('active', el.dataset.theme === (this.isDarkMode ? 'dark' : 'light'));
+    });
+  }
+
+  private applyTheme() {
+    const colors = this.isDarkMode ? this.config.theme.dark : this.config.theme.light;
+    document.documentElement.setAttribute('data-theme', this.isDarkMode ? 'dark' : 'light');
+    document.body.style.background = colors.background;
+    this.keyboard.scene.scene.background = new THREE.Color(colors.background);
+
+
     // Update keyboard theme
     this.keyboard.updateTheme(this.isDarkMode);
     
@@ -395,7 +482,6 @@ export class UI {
     this.setupTextInputListeners();
     this.setupKeyboardListeners();
     this.setupPreviewListeners();
-    this.setupAIButtonListener();
     this.setupThemeToggle();
     this.setupFontControls();
     this.setupCharacterBarEvents();
@@ -1525,21 +1611,19 @@ export class UI {
   }
 
   private setupThemeToggle() {
-    // Add click listener to slider knob for theme toggle
-    this.elements.shadowAngle?.addEventListener('click', (e: MouseEvent) => {
-      const slider = e.target as HTMLInputElement;
-      const rect = slider.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      const sliderWidth = rect.width;
-      const thumbPosition = (parseFloat(slider.value) / 360) * sliderWidth;
-      
-      // Check if click is near the thumb (within 20px)
-      if (Math.abs(clickX - thumbPosition) <= 20) {
-        e.preventDefault();
-        this.isDarkMode = !this.isDarkMode;
-        this.applyTheme();
-      }
-    });
+    const themeToggle = document.getElementById('themeToggle');
+    if (this.config.features.themeToggle) {
+      themeToggle?.addEventListener('click', () => this.toggleTheme());
+    } else {
+      themeToggle?.classList.add('hidden');
+    }
+
+    const settingsToggle = document.getElementById('settingsToggle');
+    if (this.config.features.settingsPanel) {
+      settingsToggle?.addEventListener('click', () => this.toggleSettingsPanel());
+    } else {
+      settingsToggle?.classList.add('hidden');
+    }
   }
 
   private setupTextInputListeners() {
@@ -1597,7 +1681,10 @@ export class UI {
       element.addEventListener('keydown', (e: KeyboardEvent) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          this.triggerAIRemix();
+          (e.target as HTMLElement).blur();
+          if (this.config.features.poster) {
+            this.showPreview();
+          }
         }
       });
       element.addEventListener('paste', (e: ClipboardEvent) => {
@@ -1635,14 +1722,14 @@ export class UI {
 
   private setupKeyboardListeners() {
     document.addEventListener('keydown', (e: KeyboardEvent) => {
-      // Check if any modal input is focused or modal is open
-      const authModal = document.getElementById('authModal');
-      const isModalOpen = authModal?.classList.contains('show');
-      const isInputFocused = document.activeElement?.tagName === 'INPUT' || 
+      // Don't capture keystrokes while the poster preview is open or an input is focused
+      const previewModal = document.getElementById('previewModal');
+      const isModalOpen = previewModal?.style.display === 'block';
+      const isInputFocused = document.activeElement?.tagName === 'INPUT' ||
                             document.activeElement?.tagName === 'TEXTAREA' ||
-                            this.elements.textDisplay?.matches(':focus') || 
+                            this.elements.textDisplay?.matches(':focus') ||
                             this.elements.mobileTextDisplay?.matches(':focus');
-      
+
       if (!isInputFocused && !isModalOpen) {
         this.handleUnfocusedKeyPress(e);
       }
@@ -1657,14 +1744,14 @@ export class UI {
     // Add spacebar trigger for Preview & Print (desktop only)
     document.addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.key === ' ' || e.code === 'Space') {
-        // Check if any modal input is focused or modal is open
-        const authModal = document.getElementById('authModal');
-        const isModalOpen = authModal?.classList.contains('show');
-        const isInputFocused = document.activeElement?.tagName === 'INPUT' || 
+        // Don't trigger preview while it's already open or an input is focused
+        const previewModal = document.getElementById('previewModal');
+        const isModalOpen = previewModal?.style.display === 'block';
+        const isInputFocused = document.activeElement?.tagName === 'INPUT' ||
                               document.activeElement?.tagName === 'TEXTAREA' ||
-                              this.elements.textDisplay?.matches(':focus') || 
+                              this.elements.textDisplay?.matches(':focus') ||
                               this.elements.mobileTextDisplay?.matches(':focus');
-        
+
         // Only trigger if not focused on any inputs, modal not open, and not on mobile
         if (!isInputFocused && !isModalOpen && window.innerWidth > 480) {
           e.preventDefault();
@@ -1703,18 +1790,6 @@ export class UI {
     }
 
     if (this.keyboard.keyObjects[key] && currentText.length < this.maxCharacters) {
-      this.hasInteracted = true;
-      const newText = currentText + key;
-      this.updateDisplays(newText);
-      this.trackTypingSession(newText);
-    }
-  }
-
-  private handleKeyClick(key: string) {
-    const currentText = this.getDisplayText();
-    
-    // Only add if under character limit
-    if (currentText.length < this.maxCharacters) {
       this.hasInteracted = true;
       const newText = currentText + key;
       this.updateDisplays(newText);
@@ -1769,306 +1844,14 @@ export class UI {
     });
   }
 
-  private async triggerAIRemix() {
-    const aiButton = document.getElementById('aiButton') as HTMLButtonElement;
-    if (!aiButton) return;
-    
-    // Proceed regardless of authentication
-    if (aiButton.disabled) return;
-
-    // Remove attention animation on first use
-    if (this.aiButtonFirstUse) {
-      aiButton.classList.remove('attention');
-      this.aiButtonFirstUse = false;
-    }
-    
-    const currentText = this.getDisplayText();
-    
-    if (!currentText || currentText === 'type something and click Reword or just hit enter') {
-      const defaultText = 'Bend the grid. Break the rules. Let letters dance on empty space.';
-      this.hasInteracted = true;
-      await this.keyboard.animateTypingSequence(defaultText);
-      this.updateCharacterBar(defaultText);
-      return;
-    }
-
-    aiButton.disabled = true;
-    aiButton.textContent = '✦Rewording...';
-    
-    try {
-      // First, clear existing keys with backspace animation
-      if (currentText && currentText.trim()) {
-        await this.keyboard.animateBackspaceSequence(currentText);
-        // Clear the UI displays after backspace animation
-        this.updateDisplays('');
-      }
-      
-      // Then generate AI text after clearing is complete
-      const modifiedText = await this.modifyTextWithAI(currentText);
-      this.hasInteracted = true;
-      
-      // Animate typing the new AI-generated text
-      await this.keyboard.animateTypingSequence(modifiedText);
-      
-      // Make preview button bounce 4 times after successful AI text generation
-      setTimeout(() => {
-        const previewButton = document.getElementById('previewAndPrint');
-        if (previewButton) {
-          previewButton.classList.remove('bounce'); // Remove if already present
-          previewButton.classList.add('bounce');
-          // Remove the bounce class after animation completes (0.8s * 4 = 3.2s)
-          setTimeout(() => {
-            previewButton.classList.remove('bounce');
-          }, 3200);
-        }
-      }, 100);
-    } catch (error) {
-      console.error('AI Button Error:', error);
-      this.showError('Unable to process text. Please try again.');
-    } finally {
-      aiButton.disabled = false;
-      aiButton.textContent = 'Reword ✦';
-    }
-  }
-
-  private setupAuthenticationSystem() {
-    // Initialize authentication UI elements
-    const authContainer = document.getElementById('authContainer');
-    const loginBtn = document.getElementById('loginBtn');
-    const userMenu = document.getElementById('userMenu');
-    const userEmail = document.getElementById('userEmail');
-    const logoutBtn = document.getElementById('logoutBtn');
-    const authModal = document.getElementById('authModal');
-    const closeAuthModal = document.getElementById('closeAuthModal');
-    const skipAuth = document.getElementById('skipAuth');
-    
-    // Authentication tabs
-    const loginTab = document.getElementById('loginTab');
-    const signupTab = document.getElementById('signupTab');
-    
-    // Form elements
-    const loginFormElement = document.getElementById('loginFormElement');
-    const signupFormElement = document.getElementById('signupFormElement');
-    const googleLoginBtn = document.getElementById('googleLoginBtn');
-    const googleSignupBtn = document.getElementById('googleSignupBtn');
-    
-    if (!authContainer || !loginBtn || !userMenu || !userEmail || !logoutBtn || !authModal) return;
-    
-    // Show authentication container
-    authContainer.classList.remove('hidden');
-    
-    // Set up event listeners
-    loginBtn.addEventListener('click', () => {
-      authModal.classList.add('show');
-      this.switchAuthTab('login');
-    });
-    
-    logoutBtn.addEventListener('click', async () => {
-      try {
-        await authService.signOut();
-      } catch (error) {
-        console.error('Logout error:', error);
-        this.showError('Failed to sign out. Please try again.');
-      }
-    });
-    
-    closeAuthModal?.addEventListener('click', () => {
-      authModal.classList.remove('show');
-    });
-    
-    // Skip authentication for now - allow app usage without showing modal again
-    const skipAuthSignup = document.getElementById('skipAuthSignup');
-    
-    skipAuth?.addEventListener('click', (e) => {
-      e.preventDefault();
-      localStorage.setItem('skipAuth', '1');
-      authModal?.classList.remove('show');
-    });
-    
-    skipAuthSignup?.addEventListener('click', (e) => {
-      e.preventDefault();
-      localStorage.setItem('skipAuth', '1');
-      authModal?.classList.remove('show');
-    });
-    
-    // Close modal when clicking outside
-    authModal.addEventListener('click', (e) => {
-      if (e.target === authModal) {
-        authModal.classList.remove('show');
-      }
-    });
-    
-    // Tab switching
-    loginTab?.addEventListener('click', () => this.switchAuthTab('login'));
-    signupTab?.addEventListener('click', () => this.switchAuthTab('signup'));
-    
-    // Form submissions
-    loginFormElement?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const form = e.target as HTMLFormElement;
-      const emailInput = form.querySelector('#loginEmail') as HTMLInputElement;
-      const passwordInput = form.querySelector('#loginPassword') as HTMLInputElement;
-      
-      if (!emailInput || !passwordInput) return;
-      
-      await this.handleLogin(emailInput.value, passwordInput.value);
-    });
-    
-    signupFormElement?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const form = e.target as HTMLFormElement;
-      const emailInput = form.querySelector('#signupEmail') as HTMLInputElement;
-      const passwordInput = form.querySelector('#signupPassword') as HTMLInputElement;
-      const confirmPasswordInput = form.querySelector('#confirmPassword') as HTMLInputElement;
-      
-      if (!emailInput || !passwordInput || !confirmPasswordInput) return;
-      
-      if (passwordInput.value !== confirmPasswordInput.value) {
-        this.showError('Passwords do not match');
-        return;
-      }
-      
-      await this.handleSignup(emailInput.value, passwordInput.value);
-    });
-    
-    // Google authentication
-    googleLoginBtn?.addEventListener('click', async () => {
-      await this.handleGoogleAuth();
-    });
-    
-    googleSignupBtn?.addEventListener('click', async () => {
-      await this.handleGoogleAuth();
-    });
-    
-    // Listen for authentication state changes
-    document.addEventListener('authStateChange', ((event: CustomEvent) => {
-      const { session, user } = event.detail;
-      this.updateAuthUI(session, user);
-    }) as EventListener);
-    
-    // Initialize UI state
-    this.updateAuthUI(authService.getCurrentSession(), authService.getCurrentUser());
-  }
-  
-  private switchAuthTab(tab: 'login' | 'signup') {
-    const loginTab = document.getElementById('loginTab');
-    const signupTab = document.getElementById('signupTab');
-    const loginForm = document.getElementById('loginForm');
-    const signupForm = document.getElementById('signupForm');
-    
-    if (!loginTab || !signupTab || !loginForm || !signupForm) return;
-    
-    if (tab === 'login') {
-      loginTab.classList.add('active');
-      signupTab.classList.remove('active');
-      loginForm.classList.remove('hidden');
-      signupForm.classList.add('hidden');
-    } else {
-      signupTab.classList.add('active');
-      loginTab.classList.remove('active');
-      signupForm.classList.remove('hidden');
-      loginForm.classList.add('hidden');
-    }
-  }
-  
-  private async handleLogin(email: string, password: string) {
-    const submitBtn = document.getElementById('loginSubmit') as HTMLButtonElement;
-    if (!submitBtn) return;
-    
-    const originalText = submitBtn.textContent;
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Signing In...';
-    
-    try {
-      await authService.signIn(email, password);
-      const authModal = document.getElementById('authModal');
-      authModal?.classList.remove('show');
-    } catch (error) {
-      console.error('Login error:', error);
-      this.showError('Failed to sign in. Please check your credentials.');
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.textContent = originalText;
-    }
-  }
-  
-  private async handleSignup(email: string, password: string) {
-    const submitBtn = document.getElementById('signupSubmit') as HTMLButtonElement;
-    if (!submitBtn) return;
-    
-    const originalText = submitBtn.textContent;
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Creating Account...';
-    
-    try {
-      await authService.signUp(email, password);
-      this.showError('Please check your email to verify your account.', false);
-      const authModal = document.getElementById('authModal');
-      authModal?.classList.remove('show');
-    } catch (error) {
-      console.error('Signup error:', error);
-      this.showError('Failed to create account. Please try again.');
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.textContent = originalText;
-    }
-  }
-  
-  private async handleGoogleAuth() {
-    try {
-      await authService.signInWithGoogle();
-    } catch (error) {
-      console.error('Google auth error:', error);
-      this.showError('Failed to sign in with Google. Please try again.');
-    }
-  }
-  
-  private updateAuthUI(session: any, user: any) {
-    const authContainer = document.getElementById('authContainer');
-    const loginBtn = document.getElementById('loginBtn');
-    const userMenu = document.getElementById('userMenu');
-    const userEmail = document.getElementById('userEmail');
-    const aiButton = document.getElementById('aiButton') as HTMLButtonElement;
-    
-    if (!authContainer || !loginBtn || !userMenu || !userEmail || !aiButton) return;
-    
-    if (session && user) {
-      // User is authenticated
-      loginBtn.classList.add('hidden');
-      userMenu.classList.remove('hidden');
-      userEmail.textContent = user.email || 'User';
-      
-      // Enable AI button fully
-      aiButton.disabled = false;
-      aiButton.classList.remove('pseudo-disabled');
-    } else {
-      // User is not authenticated - allow AI usage
-      loginBtn.classList.remove('hidden');
-      userMenu.classList.add('hidden');
-      aiButton.disabled = false;
-      aiButton.classList.remove('pseudo-disabled');
-    }
-  }
-
-  private setupAIButtonListener() {
-    const aiButton = document.getElementById('aiButton');
-    if (!aiButton) return;
-
-    // Simple click listener - button is never actually disabled now
-    aiButton.addEventListener('click', async (e) => {
-      e.preventDefault();
-      await this.triggerAIRemix();
-    });
-  }
-
   private getDisplayText(): string {
     const text = this.elements.textDisplay?.textContent?.trim() || '';
     return this.hasInteracted ? text : '';
   }
 
   private updateDisplays(text: string, skipTextUpdate = false) {
-    const displayText = !this.hasInteracted && !text 
-      ? 'type something and click Reword or just hit enter' 
+    const displayText = !this.hasInteracted && !text
+      ? 'type something…'
       : text;
     
     // Set placeholder attribute for blinking cursor
@@ -2362,7 +2145,7 @@ export class UI {
   private updateCharacterBar(text: string) {
     if (!this.elements.characterBarSegments) return;
     this.elements.characterBarSegments.innerHTML = '';
-    if (!text || text === 'type something and click Reword or just hit enter' || !this.hasInteracted) return;
+    if (!text || text === 'type something…' || !this.hasInteracted) return;
 
     const letterCount: { [key: string]: number } = {};
     text.toLowerCase().split('').forEach(char => {

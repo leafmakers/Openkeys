@@ -15,15 +15,15 @@
  * window.addEventListener('resize', handleResize);
  */
 export function debounce(func: (...args: any[]) => any, wait: number) {
-  let timeoutId: NodeJS.Timeout | undefined;
-  
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
   return function executedFunction(...args: any[]) {
     const later = () => {
-      clearTimeout(timeoutId as NodeJS.Timeout);
+      clearTimeout(timeoutId);
       func(...args);
     };
-    
-    clearTimeout(timeoutId as NodeJS.Timeout);
+
+    clearTimeout(timeoutId);
     timeoutId = setTimeout(later, wait);
   };
 }

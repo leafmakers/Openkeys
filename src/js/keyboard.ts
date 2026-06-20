@@ -2,9 +2,13 @@ import * as THREE from 'three';
 import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
 import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
 import { Scene } from './scene';
+import type { OpenKeysConfig, ThemeColors } from './config';
 
 export class Keyboard {
   private scene: Scene;
+  private config: OpenKeysConfig;
+  private rowStagger: number;
+  private keyGap: number;
   private keyMap: string[][];
   private keyObjects: Record<string, THREE.Mesh>;
   private textObjects: Record<string, THREE.Mesh>;
@@ -21,6 +25,9 @@ export class Keyboard {
   private waveHeight: number;
   private idleAnimationTime: number;
   private clearAnimationInProgress: boolean = false;
+  /** True once the (async font-dependent) keyboard mesh has been built. */
+  public isBuilt: boolean = false;
+  private onReadyCallback: (() => void) | null = null;
   private container: THREE.Group;
   private isDarkMode: boolean;
   private keyMaterials: Record<string, THREE.MeshPhysicalMaterial[]>;
@@ -46,16 +53,14 @@ export class Keyboard {
   //   waveRadius: number;
   // };
 
-  constructor(scene: Scene) {
+  constructor(scene: Scene, config: OpenKeysConfig) {
     this.scene = scene;
-    
-    // Initialize keyboard layout
-    this.keyMap = [
-      ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
-      ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
-      ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
-      ['z', 'x', 'c', 'v', 'b', 'n', 'm']
-    ];
+    this.config = config;
+
+    // Keyboard layout comes from config (QWERTY by default)
+    this.keyMap = config.layout.rows;
+    this.rowStagger = config.layout.rowStagger;
+    this.keyGap = config.layout.keyGap;
 
     // Initialize properties
     // Key-related objects and states
@@ -72,17 +77,17 @@ export class Keyboard {
     this.currentFont = null;
     this.fontLoader = new FontLoader();
 
-    // Keyboard dimensions and animation parameters
-    this.keySize = 10;
-    this.spacing = 12;
-    this.growthIncrement = 0.5;
-    this.waveSpeed = 2;
-    this.waveRadius = 3;
-    this.waveHeight = 0.2;
+    // Keyboard dimensions and animation parameters (from config)
+    this.keySize = config.layout.keySize;
+    this.spacing = config.layout.spacing;
+    this.growthIncrement = config.data.growthIncrement;
+    this.waveSpeed = config.animation.wave.speed;
+    this.waveRadius = config.animation.wave.radius;
+    this.waveHeight = config.animation.wave.height;
     this.idleAnimationTime = 0;
-    
+
     // State flags
-    this.isDarkMode = false;
+    this.isDarkMode = config.theme.mode === 'dark';
     // Animation state removed - was unused
 
     // Setup keyboard container
@@ -92,40 +97,46 @@ export class Keyboard {
     
     // Initialize rotation animation properties
     this.rotationState = {
-      isRotating: true,
+      isRotating: config.animation.intro.enabled,
       startTime: performance.now(),
-      rotationDuration: 2000, // 2 seconds for rotation
-      pauseDuration: 3000, // 3 seconds pause between rotations
+      rotationDuration: config.animation.intro.duration,
+      pauseDuration: config.animation.intro.pause,
       initialRotation: 0,
       targetRotation: Math.PI * 2, // 360 degrees
       isPaused: false,
       pauseStartTime: 0
     };
-    
+
     this.loadFonts();
   }
 
+  private theme(): ThemeColors {
+    return this.isDarkMode ? this.config.theme.dark : this.config.theme.light;
+  }
+
   createKeyMaterial() {
+    const colors = this.theme();
+
     // Simple side material without complex textures
     const sideMaterial = new THREE.MeshBasicMaterial({
-      color: this.isDarkMode ? 0x333333 : 0xcccccc,
+      color: new THREE.Color(colors.keySide),
       transparent: true,
       opacity: 0.8
     });
 
     // Top material - physical material for light mode, basic for dark mode
-    const topMaterial = this.isDarkMode 
+    const topMaterial = this.isDarkMode
       ? new THREE.MeshBasicMaterial({
-          color: 0x252525,
+          color: new THREE.Color(colors.keyTop),
           transparent: false
         })
       : new THREE.MeshPhysicalMaterial({
-          color: 0xfcfaf6,
+          color: new THREE.Color(colors.keyTop),
           metalness: 0.1,
           roughness: 0.2,
           clearcoat: 0.8,
           clearcoatRoughness: 0.1,
-          emissive: 0xfcfaf6,
+          emissive: new THREE.Color(colors.keyTop),
           emissiveIntensity: 0.3,
           transparent: false
         });
@@ -137,30 +148,29 @@ export class Keyboard {
   }
 
   loadFonts() {
-    // Define font URLs for different styles
-    const fontUrls = {
-      'System': 'https://threejs.org/examples/fonts/helvetiker_regular.typeface.json',
-      'Georgia': 'https://threejs.org/examples/fonts/gentilis_regular.typeface.json',
-      'Inter': 'https://threejs.org/examples/fonts/helvetiker_regular.typeface.json',
-      'Roboto Condensed': 'https://threejs.org/examples/fonts/helvetiker_regular.typeface.json'
-    };
+    // Key-cap typefaces come from config (three.js typeface.json)
+    const fonts = this.config.typography.keyCapFonts;
+    const defaultName = this.config.typography.defaultFont;
 
-    // Load all fonts
     let fontsLoaded = 0;
-    const totalFonts = Object.keys(fontUrls).length;
+    const totalFonts = fonts.length;
 
-    Object.entries(fontUrls).forEach(([fontName, url]) => {
+    fonts.forEach(({ name: fontName, url }) => {
       this.fontLoader.load(url, (font) => {
         this.loadedFonts[fontName] = font;
         fontsLoaded++;
-        
-        // Use System font as default
-        if (fontName === 'System') {
+
+        // Use the configured default font
+        if (fontName === defaultName) {
           this.currentFont = font;
         }
-        
+
         // Create keyboard when all fonts are loaded
         if (fontsLoaded === totalFonts) {
+          // Fall back to the first loaded font if the default name didn't match
+          if (!this.currentFont) {
+            this.currentFont = this.loadedFonts[fonts[0].name];
+          }
           this.createKeyboard();
         }
       });
@@ -177,13 +187,22 @@ export class Keyboard {
 
     this.keyMap.forEach((row, rowIndex) => {
       const z = rowIndex * this.spacing;
-      let x = rowIndex * 5;
-      
+      let x = rowIndex * this.rowStagger;
+
       row.forEach((key) => {
         this.createKeyWithOutlineAndText(key, x, z, this.currentFont, outlineMaterial);
-        x += this.keySize + 2;
+        x += this.keySize + this.keyGap;
       });
     });
+
+    this.isBuilt = true;
+    this.onReadyCallback?.();
+  }
+
+  /** Register a callback to run once the keyboard mesh is built (fires immediately if already built). */
+  setOnReady(cb: () => void) {
+    this.onReadyCallback = cb;
+    if (this.isBuilt) cb();
   }
 
   createKeyWithOutlineAndText(key: string, x: number, z: number, font: any, outlineMaterial: THREE.LineBasicMaterial) {
@@ -201,7 +220,7 @@ export class Keyboard {
     
     // Create text material for this key
     const textMaterial = new THREE.MeshPhysicalMaterial({
-      color: this.isDarkMode ? 0xfcfaf6 : 0x3c4142,
+      color: new THREE.Color(this.theme().keyText),
       metalness: 0,
       roughness: 1
     });
@@ -237,15 +256,16 @@ export class Keyboard {
       this.keySize + 0.1
     );
     const edges = new THREE.EdgesGeometry(outlineGeometry);
-    
+    const colors = this.theme();
+
     // Create material that responds to dark mode
     const outlineMaterial = new THREE.LineBasicMaterial({
-      color: this.isDarkMode ? 0xfcfaf6 : 0x3c4142,
+      color: new THREE.Color(colors.outline),
       linewidth: 3,
       transparent: true,
-      opacity: this.isDarkMode ? 0.8 : 0.60
+      opacity: colors.outlineOpacity
     });
-    
+
     const outline = new THREE.LineSegments(edges, outlineMaterial);
     outline.position.copy(position);
     outline.scale.y = 0.01;
@@ -258,13 +278,14 @@ export class Keyboard {
     // Create a square outline at the base of the key
     const baseGeometry = new THREE.PlaneGeometry(this.keySize, this.keySize);
     const edges = new THREE.EdgesGeometry(baseGeometry);
-    
+    const colors = this.theme();
+
     // Create material that responds to dark mode
     const baseOutlineMaterial = new THREE.LineBasicMaterial({
-      color: this.isDarkMode ? 0xfcfaf6 : 0x3c4142,
+      color: new THREE.Color(colors.baseOutline),
       linewidth: 2,
       transparent: true,
-      opacity: this.isDarkMode ? 0.6 : 0.4
+      opacity: colors.baseOutlineOpacity
     });
     
     const baseOutline = new THREE.LineSegments(edges, baseOutlineMaterial);
@@ -278,9 +299,9 @@ export class Keyboard {
   createKeyText(key: string, font: any, material: THREE.MeshPhysicalMaterial) {
     const textGeometry = new TextGeometry(key, {
       font: font,
-      size: 2.5,
+      size: this.config.typography.textSize,
       height: 0,
-      curveSegments: 12,
+      curveSegments: this.config.typography.curveSegments,
     });
     textGeometry.computeBoundingBox();
     const textMesh = new THREE.Mesh(textGeometry, material);
@@ -372,14 +393,17 @@ export class Keyboard {
   }
 
   updateIdleAnimation() {
-    this.idleAnimationTime += 0.03;
-    
+    const idle = this.config.animation.idle;
+    this.idleAnimationTime += idle.speed;
+
     Object.entries(this.keyObjects).forEach(([key, mesh]) => {
       // CRITICAL: Base height must always match character count
       const baseHeight = this.growthIncrement * (this.keyTypeCounts[key] || 0);
       this.keyHeights[key] = baseHeight; // Ensure stored height is always correct
-      
-      const offset = Math.sin(this.idleAnimationTime + mesh.position.x * 0.1) * 0.1;
+
+      const offset = idle.enabled
+        ? Math.sin(this.idleAnimationTime + mesh.position.x * 0.1) * idle.amplitude
+        : 0;
       const animatedHeight = Math.max(0.01, baseHeight + offset);
       
       mesh.scale.y = animatedHeight;
@@ -394,7 +418,7 @@ export class Keyboard {
   updateFromText(text: string) {
     this.resetAllKeys();
     
-    if (!text || text === "type something and hit Ai Remix...") {
+    if (!text || text === "type something…") {
       return;
     }
 
@@ -411,28 +435,36 @@ export class Keyboard {
     });
   }
 
-  processTextInput(text: string) {
-    const charCounts = {};
-    text.toLowerCase().split('').forEach(char => {
+  private computeCounts(text: string): Record<string, number> {
+    const counts: Record<string, number> = {};
+    const src = this.config.data.caseSensitive ? text : text.toLowerCase();
+    src.split('').forEach(char => {
       if (this.keyObjects[char]) {
-        (charCounts as any)[char] = ((charCounts as any)[char] || 0) + 1;
+        counts[char] = (counts[char] || 0) + 1;
       }
     });
+    return counts;
+  }
 
-    Object.entries(charCounts).forEach(([char, count]) => {
-      // CRITICAL: Character count determines height - this relationship is immutable
-      this.keyTypeCounts[char] = count as number;
-      this.keyHeights[char] = this.growthIncrement * (count as number);
+  /** Resolve the value (key height multiplier) for a label per the configured data mode. */
+  private computeValue(label: string, text: string, counts: Record<string, number>): number {
+    const d = this.config.data;
+    if (d.mode === 'static') return d.staticValues?.[label] ?? 0;
+    if (d.mode === 'custom' && d.valueFn) return d.valueFn(label, text, counts);
+    return counts[label] || 0; // 'frequency'
+  }
+
+  processTextInput(text: string) {
+    const counts = this.computeCounts(text);
+
+    Object.keys(this.keyObjects).forEach(char => {
+      // CRITICAL: value determines height - this relationship is immutable
+      const value = this.computeValue(char, text, counts);
+      this.keyTypeCounts[char] = value;
+      this.keyHeights[char] = this.growthIncrement * value;
       this.updateKeyObject(char);
-      this.createWaveEffect(char);
-    });
-    
-    // Ensure keys not in current text are reset to zero
-    Object.keys(this.keyObjects).forEach(key => {
-      if (!(charCounts as any)[key]) {
-        this.keyTypeCounts[key] = 0;
-        this.keyHeights[key] = 0;
-        this.updateKeyObject(key);
+      if (value > 0) {
+        this.createWaveEffect(char);
       }
     });
   }
@@ -568,7 +600,7 @@ export class Keyboard {
     const mobileTextDisplay = document.getElementById('mobileTextDisplay');
     
     const text = textDisplay?.textContent || mobileTextDisplay?.textContent || '';
-    return text === 'type something and click Ai Remix or just hit enter...' ? '' : text;
+    return text === 'type something…' ? '' : text;
   }
 
   async animateBackspaceSequence(text: string) {
@@ -615,7 +647,7 @@ export class Keyboard {
     if (!mesh || !outline) return;
 
     const originalHeight = this.keyHeights[key] || 0.01;
-    const pressDepth = 0.3; // How far down the key goes when pressed
+    const pressDepth = this.config.animation.keyPressDepth; // How far down the key goes when pressed
     const totalDuration = 100; // Total animation time in ms
     const startTime = performance.now();
 
@@ -728,65 +760,66 @@ export class Keyboard {
 
   updateTheme(isDarkMode: boolean) {
     this.isDarkMode = isDarkMode;
-    
+    const colors = this.theme();
+
     // Update key materials (key caps)
     Object.entries(this.keyMaterials).forEach(([key, materials]) => {
       // Update the top material (key cap) - index 2
       // Need to recreate the material since we're switching between Basic and Physical
       const mesh = this.keyObjects[key];
       if (mesh) {
-        const newTopMaterial = isDarkMode 
+        const newTopMaterial = isDarkMode
           ? new THREE.MeshBasicMaterial({
-              color: 0x252525, // Dark mode key caps
+              color: new THREE.Color(colors.keyTop), // Dark mode key caps
               transparent: false
             })
           : new THREE.MeshPhysicalMaterial({
-              color: 0xfcfaf6,
+              color: new THREE.Color(colors.keyTop),
               metalness: 0.1,
               roughness: 0.2,
               clearcoat: 0.8,
               clearcoatRoughness: 0.1,
-              emissive: 0xfcfaf6,
+              emissive: new THREE.Color(colors.keyTop),
               emissiveIntensity: 0.3,
               transparent: false
             });
-        
+
         // Update the material array
         (materials as any)[2] = newTopMaterial;
-        
+
         // Update the mesh materials
         if (Array.isArray(mesh.material)) {
           mesh.material[2] = newTopMaterial;
         }
       }
-      
+
       // Update side materials - indices 0, 1, 3, 4, 5
       [0, 1, 3, 4, 5].forEach(index => {
         const sideMaterial = materials[index] as unknown as THREE.MeshBasicMaterial;
         if (sideMaterial) {
-          sideMaterial.color.setHex(isDarkMode ? 0x333333 : 0xdddddd);
+          sideMaterial.color.set(colors.keySide);
         }
       });
     });
-    
+
     // Update text materials
     Object.values(this.textMaterials).forEach(textMaterial => {
-      textMaterial.color.setHex(isDarkMode ? 0xfcfaf6 : 0x3c4142);
+      textMaterial.color.set(colors.keyText);
     });
-    
+
     // Update all existing outlines
     Object.values(this.outlineObjects).forEach(outline => {
       if (outline.material) {
-        (outline.material as any).color.setHex(isDarkMode ? 0xfcfaf6 : 0x3c4142);
-        (outline.material as any).opacity = isDarkMode ? 0.8 : 0.60;
+        (outline.material as any).color.set(colors.outline);
+        (outline.material as any).opacity = colors.outlineOpacity;
       }
     });
-    
+
     // Update all existing base outlines
     Object.values(this.baseOutlineObjects).forEach(baseOutline => {
       if (baseOutline.material) {
-        (baseOutline.material as any).color.setHex(isDarkMode ? 0xffffff : 0x3c4142);
-        (baseOutline.material as any).opacity = isDarkMode ? 0.6 : 0.4;
+        (baseOutline.material as any).color.set(colors.baseOutline);
+        (baseOutline.material as any).opacity = colors.baseOutlineOpacity;
       }
     });
   }
@@ -829,7 +862,7 @@ export class Keyboard {
       
       // Create new text material
       const textMaterial = new THREE.MeshPhysicalMaterial({
-        color: this.isDarkMode ? 0xfcfaf6 : 0x3c4142,
+        color: new THREE.Color(this.theme().keyText),
         metalness: 0,
         roughness: 1
       });

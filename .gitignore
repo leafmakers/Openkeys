@@ -4,5 +4,5 @@ node_modules/
 **/.DS_Store
 .claude/
 dist/
-supabase/.temp/
+dist-lib/
 *.log

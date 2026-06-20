@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenKeys — embed example</title>
+    <style>
+      body { margin: 0; font-family: system-ui, sans-serif; background: #f4f4f4; }
+      h1 { padding: 16px 24px 0; margin: 0; font-size: 18px; }
+      p { padding: 0 24px; color: #555; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px 24px; }
+      .card { background: #fff; border: 1px solid #ddd; border-radius: 12px; overflow: hidden; }
+      .card h2 { font-size: 13px; margin: 0; padding: 10px 14px; border-bottom: 1px solid #eee; color: #333; }
+      open-keys { display: block; height: 320px; }
+    </style>
+  </head>
+  <body>
+    <h1>OpenKeys — embeddable &lt;open-keys&gt; web component</h1>
+    <p>Two independent instances on one page, each configured via attributes.</p>
+    <div class="grid">
+      <div class="card">
+        <h2>QWERTY · light · text="hello world"</h2>
+        <open-keys text="hello world" layout="qwerty" theme="light"></open-keys>
+      </div>
+      <div class="card">
+        <h2>Dvorak · dark · text="open keys"</h2>
+        <open-keys text="open keys" layout="dvorak" theme="dark"></open-keys>
+      </div>
+    </div>
+
+    <!-- In dev we import the TS source directly; consumers would import the built 'openkeys' package. -->
+    <script type="module" src="/src/lib/index.ts"></script>
+  </body>
+</html>

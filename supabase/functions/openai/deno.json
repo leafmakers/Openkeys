@@ -1,6 +1,0 @@
-{
-  "verifyJWT": false,
-  "env": ["OPENAI_API_KEY"]
-}
-
-

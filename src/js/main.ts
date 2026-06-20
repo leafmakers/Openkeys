@@ -1,6 +1,7 @@
 import { Scene } from './scene';
 import { Keyboard } from './keyboard';
 import { UI } from './ui';
+import { resolveConfig } from './config';
 
 class Application {
   private scene: Scene | null;
@@ -17,10 +18,13 @@ class Application {
 
   initialize() {
     try {
+      // Resolve effective config: defaults < (future inline overrides) < URL params
+      const config = resolveConfig({}, new URLSearchParams(window.location.search));
+
       // Initialize core components
-      this.scene = new Scene();
-      this.keyboard = new Keyboard(this.scene);
-      new UI(this.keyboard, (this.scene as any).renderer); // UI initializes itself
+      this.scene = new Scene(config);
+      this.keyboard = new Keyboard(this.scene, config);
+      new UI(this.keyboard, (this.scene as any).renderer, config); // UI initializes itself
       
       // Start animation loop
       this.isRunning = true;
