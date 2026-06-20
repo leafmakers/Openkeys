@@ -1,0 +1,4 @@
+/* font-library — font controls, pinned chips, slide-in drawer, font cards, weight
+   previews, and the A–Z rail. Live styles currently ship from src/styles/main.css
+   (#fontControls, .font-name-trigger, .font-drawer*, .favorite-font-chip, .font-card*,
+   .font-weight*, .az-scroll-guide, …); they move here in the CSS-sharding step. */

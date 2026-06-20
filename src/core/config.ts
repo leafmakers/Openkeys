@@ -454,5 +454,12 @@ export function resolveConfig(
   if (urlParams) {
     cfg = deepMerge(cfg, parseUrlParams(urlParams));
   }
+  // Default the Google Fonts API key from the build-time env var when the embedder
+  // didn't pass one, so the font-library module can read it off config alone.
+  if (!cfg.typography.googleFontsApiKey) {
+    const envKey =
+      typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GOOGLE_FONTS_API_KEY;
+    if (envKey) cfg.typography.googleFontsApiKey = envKey as string;
+  }
   return cfg;
 }

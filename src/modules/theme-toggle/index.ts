@@ -14,6 +14,12 @@ export const themeToggle: OpenKeysModule = ({ engine, host, signal }) => {
   const btn = resolve(host, 'theme-toggle', 'themeToggle');
   if (!btn) return () => {};
 
+  // Disabled via config → hide the button and do nothing else.
+  if (!engine.config.features.themeToggle) {
+    btn.classList.add('hidden');
+    return () => {};
+  }
+
   btn.addEventListener(
     'click',
     () => engine.setTheme(engine.themeMode === 'dark' ? 'light' : 'dark'),

@@ -7,7 +7,7 @@ import { typingSpeed } from '../modules/typing-speed';
 import { themeToggle } from '../modules/theme-toggle';
 import { poster } from '../modules/poster';
 import { settingsPanel } from '../modules/settings-panel';
-import { UI } from './ui';
+import { fontLibrary } from '../modules/font-library';
 
 function showFatalError(error: unknown) {
   const el = document.createElement('div');
@@ -43,20 +43,19 @@ document.addEventListener('DOMContentLoaded', () => {
         : config.theme.mode;
     engine.setTheme(initialMode);
 
-    // Feature modules. Most are gated by config.features at compose time; `poster` and
-    // `settingsPanel` are always composed because the settings panel toggles their
-    // visibility live (each respects its own config flag internally). More extracted later.
+    // Feature modules. `textInput`/`characterBar`/`typingSpeed` are gated at compose time;
+    // the rest always compose and gate themselves internally on their config flag (they own
+    // static chrome that must be hidden — or, for poster/settings, toggled live — when off).
     const modules = [
       config.features.textInput && textInput,
       config.features.characterBar && characterBar,
       config.features.typingSpeed && typingSpeed,
-      config.features.themeToggle && themeToggle,
+      themeToggle,
+      fontLibrary,
       poster,
       settingsPanel,
     ].filter(Boolean) as import('../core/types').OpenKeysModule[];
     const teardownModules = composeModules(engine, document.body, modules);
-
-    new UI(engine, config); // remaining app chrome (still being modularized)
 
     // Apply initial text (config.text / ?text=) once the keyboard mesh is built.
     engine.on('ready', () => {
