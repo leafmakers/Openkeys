@@ -3,6 +3,7 @@ import { createEngine } from '../core/engine';
 import { composeModules } from '../core/compose';
 import { characterBar } from '../modules/character-bar';
 import { typingSpeed } from '../modules/typing-speed';
+import { themeToggle } from '../modules/theme-toggle';
 import { UI } from './ui';
 
 function showFatalError(error: unknown) {
@@ -23,10 +24,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const engine = createEngine(document.body, config);
     if (import.meta.env.DEV) (window as any).okEngine = engine; // dev-only debug handle
 
+    // Page-chrome theme (single-instance): mirror engine theme to <body>/<html> + persist.
+    engine.on('theme', ({ mode, colors }) => {
+      document.body.style.background = colors.background;
+      document.documentElement.setAttribute('data-theme', mode);
+      localStorage.setItem('theme', mode);
+    });
+    // Seed theme: explicit ?theme= wins, else saved preference, else config default.
+    const urlHasTheme = new URLSearchParams(window.location.search).has('theme');
+    const saved = localStorage.getItem('theme');
+    const initialMode = urlHasTheme
+      ? config.theme.mode
+      : saved === 'light' || saved === 'dark'
+        ? saved
+        : config.theme.mode;
+    engine.setTheme(initialMode);
+
     // Feature modules (gated by config.features). More are extracted in later steps.
     const modules = [
       config.features.characterBar && characterBar,
       config.features.typingSpeed && typingSpeed,
+      config.features.themeToggle && themeToggle,
     ].filter(Boolean) as import('../core/types').OpenKeysModule[];
     const teardownModules = composeModules(engine, document.body, modules);
 

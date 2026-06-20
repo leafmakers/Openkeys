@@ -183,7 +183,12 @@ export class UI {
     this.currentFontIndex = 0;
     this.setupElements();
     this.setupEventListeners();
-    this.loadThemePreference();
+    // Theme is owned by the engine + bootstrap now; mirror it for poster/settings reads.
+    this.isDarkMode = this.engine.themeMode === 'dark';
+    this.engine.on('theme', ({ mode }: { mode: 'light' | 'dark' }) => {
+      this.isDarkMode = mode === 'dark';
+      this.syncThemeSegment();
+    });
     this.initializeFontFavorites();
     this.applyPosterVisibility();
 
@@ -296,24 +301,9 @@ export class UI {
     }, 3000);
   }
 
-  private loadThemePreference() {
-    // Precedence: explicit ?theme= URL param (already merged into config) > saved pref > config default
-    const urlHasTheme = new URLSearchParams(window.location.search).has('theme');
-    const savedTheme = localStorage.getItem('theme');
-    if (urlHasTheme) {
-      this.isDarkMode = this.config.theme.mode === 'dark';
-    } else if (savedTheme) {
-      this.isDarkMode = savedTheme === 'dark';
-    } else {
-      this.isDarkMode = this.config.theme.mode === 'dark';
-    }
-    this.applyTheme();
-  }
-
-  /** Public theme toggle used by the navbar button. */
+  /** Public theme toggle (used by the settings panel's segmented control). */
   toggleTheme() {
-    this.isDarkMode = !this.isDarkMode;
-    this.applyTheme();
+    this.engine.setTheme(this.engine.themeMode === 'dark' ? 'light' : 'dark');
   }
 
   /** Build a shareable URL that reproduces the current configuration. */
@@ -444,20 +434,6 @@ export class UI {
       el.classList.toggle('active', el.dataset.theme === (this.isDarkMode ? 'dark' : 'light'));
     });
   }
-
-  private applyTheme() {
-    const mode = this.isDarkMode ? 'dark' : 'light';
-    const colors = this.isDarkMode ? this.config.theme.dark : this.config.theme.light;
-    // Page chrome (single-instance)
-    document.documentElement.setAttribute('data-theme', mode);
-    document.body.style.background = colors.background;
-    // Engine owns the three render sinks (scene bg, floor, keyboard) and emits `theme`
-    // so view modules (e.g. character-bar) can react.
-    this.engine.setTheme(mode);
-    localStorage.setItem('theme', mode);
-  }
-
-  // Removed unused updateSliderPosition method
 
   private setupEventListeners() {
     this.setupButtonListeners();
@@ -1603,11 +1579,9 @@ export class UI {
   }
 
   private setupThemeToggle() {
-    const themeToggle = document.getElementById('themeToggle');
-    if (this.config.features.themeToggle) {
-      themeToggle?.addEventListener('click', () => this.toggleTheme());
-    } else {
-      themeToggle?.classList.add('hidden');
+    // The theme-toggle module wires the #themeToggle click; here we only hide it when disabled.
+    if (!this.config.features.themeToggle) {
+      document.getElementById('themeToggle')?.classList.add('hidden');
     }
 
     const settingsToggle = document.getElementById('settingsToggle');
