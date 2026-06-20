@@ -78,11 +78,11 @@ const config = resolveConfig({
 ### As a library
 
 ```ts
-import { createOpenKeys } from 'openkeys';
+import { createOpenKeys, DVORAK_ROWS } from 'openkeys';
 
 const kb = createOpenKeys(document.getElementById('viz'), {
   text: 'open keys',
-  layout: { preset: 'qwerty', rows: undefined as any }, // or import a preset's rows
+  layout: { rows: DVORAK_ROWS, preset: 'dvorak' },
 });
 
 kb.setText('new phrase');          // re-render from text (frequency mode)
