@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=1.0" />
+    <title>Keyboard City</title>
+    <link rel="stylesheet" href="./src/styles/main.css">
+  </head>
+  <body>
+    <!-- Navigation Bar -->
+    <nav id="navbar">
+      <div class="navbar-content">
+        <h1 class="navbar-title">Keycastle</h1>
+        <div id="authContainer" class="hidden">
+          <button id="loginBtn">Sign In</button>
+          <div id="userMenu" class="hidden">
+            <span id="userEmail"></span>
+            <button id="logoutBtn">Sign Out</button>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <div id="warning">
+      Switch to <strong>Castle</strong> mode to see the keys pop up!
+      <br>
+      <button onclick="this.parentElement.style.display='none'">Got it</button>
+    </div>
+
+    <!-- Text Display Area -->
+    <div id="textDisplayWrapper">
+      <div style="display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 8px;">
+        <button id="clearButton">Clear ×</button>
+        <button id="aiButton" class="attention" disabled>Reword ✦</button>
+      </div>
+      <div id="textDisplay" contenteditable="true">
+        type something and click Reword or just hit enter
+      </div>
+      <div class="text-display-meta">
+        <div id="typingSpeed">0 WPM</div>
+        <div id="characterCount">0/90 characters</div>
+      </div>
+      <div id="characterBar">
+        <div id="characterBarSegments"></div>
+      </div>
+    </div>
+
+    <div id="mobileTextDisplay" contenteditable="true">type something to see the visualization</div>
+
+    <div id="controls">
+      <div style="display: flex; width: 100%; gap: 12px;">
+        <button id="heightUp" class="active">↑</button>
+        <button id="heightDown">↓</button>
+        <button id="previewAndPrint">Preview Poster</button>
+        <button id="type">Type</button>
+      </div>
+      <div id="shadowControls">
+        <input type="range" id="shadowAngle" min="0" max="360" value="45" />
+      </div>
+      <div id="fontControls">
+        <button id="fontPrev" aria-label="Previous font">←</button>
+        <button id="fontLibraryTrigger" class="font-name-trigger" aria-haspopup="dialog" aria-expanded="false">
+          <span id="fontName">System</span>
+          <span class="font-name-caret">▾</span>
+        </button>
+        <button id="fontNext" aria-label="Next font">→</button>
+      </div>
+    </div>
+
+    <!-- Font Drawer -->
+    <div id="fontDrawer" class="font-drawer" aria-hidden="true">
+      <div id="fontDrawerBackdrop" class="font-drawer-backdrop" role="presentation"></div>
+      <aside id="fontDrawerPanel" class="font-drawer-panel" role="dialog" aria-labelledby="fontDrawerTitle">
+        <div class="font-drawer-header">
+          <div>
+            <p id="fontDrawerTitle">Font Library</p>
+            <p class="font-drawer-subtitle">Discover & pin your favorite typefaces</p>
+          </div>
+          <button id="fontDrawerClose" class="font-drawer-close" aria-label="Close font library">×</button>
+        </div>
+
+        <section class="font-drawer-favorites">
+          <div class="font-drawer-favorites-head">
+            <span>Pinned Fonts</span>
+            <span id="favoriteCount">0 / 5</span>
+          </div>
+          <div id="favoriteFontsList" class="favorite-fonts-list"></div>
+        </section>
+
+        <section class="font-drawer-controls">
+          <div class="font-search-wrapper">
+            <input type="search" id="fontSearchInput" placeholder="Search 1500+ fonts..." aria-label="Search fonts" />
+            <button id="fontSearchClear" type="button" class="search-clear-btn" aria-label="Clear search">×</button>
+          </div>
+          
+          <div class="font-filters">
+            <div class="filter-group">
+              <label for="fontCategoryFilter">Category</label>
+              <select id="fontCategoryFilter">
+                <option value="all">All</option>
+                <option value="sans-serif">Sans Serif</option>
+                <option value="serif">Serif</option>
+                <option value="display">Display</option>
+                <option value="handwriting">Handwriting</option>
+                <option value="monospace">Monospace</option>
+              </select>
+            </div>
+            
+            <div class="filter-group">
+              <label for="fontSortFilter">Sort by</label>
+              <select id="fontSortFilter">
+                <option value="popularity">Popularity</option>
+                <option value="alphabetical">A-Z</option>
+                <option value="trending">Trending</option>
+                <option value="date">Recently Added</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="preview-text-control">
+            <label for="previewTextInput">Preview Text</label>
+            <input type="text" id="previewTextInput" value="Bend the grid. Break the rules." maxlength="60" />
+          </div>
+
+          <div class="preview-options">
+            <label>
+              <input type="checkbox" id="showAllWeightsToggle" />
+              <span>Show all weights</span>
+            </label>
+            <label id="weightLayoutLabel" class="hidden">
+              <input type="checkbox" id="weightLayoutToggle" />
+              <span>Vertical layout</span>
+            </label>
+          </div>
+
+          <div class="weight-filter-section hidden" id="weightFilterSection">
+            <label for="weightFilterSelect">Focus Weight</label>
+            <select id="weightFilterSelect">
+              <option value="">All weights</option>
+              <option value="100">Thin (100)</option>
+              <option value="200">Extra Light (200)</option>
+              <option value="300">Light (300)</option>
+              <option value="400" selected>Regular (400)</option>
+              <option value="500">Medium (500)</option>
+              <option value="600">Semi Bold (600)</option>
+              <option value="700">Bold (700)</option>
+              <option value="800">Extra Bold (800)</option>
+              <option value="900">Black (900)</option>
+            </select>
+          </div>
+
+          <div class="variant-filter-section hidden" id="variantFilterSection">
+            <label>Style Variants</label>
+            <div class="variant-filters">
+              <label>
+                <input type="checkbox" id="showItalicToggle" />
+                <span>Italic</span>
+              </label>
+              <label>
+                <input type="checkbox" id="showCondensedToggle" />
+                <span>Condensed</span>
+              </label>
+              <label>
+                <input type="checkbox" id="showExtendedToggle" />
+                <span>Extended</span>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <div id="fontDrawerNotice" class="font-drawer-notice hidden"></div>
+
+        <div class="font-library-wrapper">
+          <section id="fontLibraryList" class="font-drawer-list">
+            <div class="font-drawer-loading">
+              <div class="loading-spinner"></div>
+              <p>Loading Google Fonts...</p>
+            </div>
+          </section>
+
+          <!-- A-Z Quick Jump Navigation -->
+          <nav class="az-scroll-guide hidden" id="azScrollGuide" aria-label="Quick jump to letter">
+            <button data-letter="A" title="Jump to A">A</button>
+            <button data-letter="B" title="Jump to B">B</button>
+            <button data-letter="C" title="Jump to C">C</button>
+            <button data-letter="D" title="Jump to D">D</button>
+            <button data-letter="E" title="Jump to E">E</button>
+            <button data-letter="F" title="Jump to F">F</button>
+            <button data-letter="G" title="Jump to G">G</button>
+            <button data-letter="H" title="Jump to H">H</button>
+            <button data-letter="I" title="Jump to I">I</button>
+            <button data-letter="J" title="Jump to J">J</button>
+            <button data-letter="K" title="Jump to K">K</button>
+            <button data-letter="L" title="Jump to L">L</button>
+            <button data-letter="M" title="Jump to M">M</button>
+            <button data-letter="N" title="Jump to N">N</button>
+            <button data-letter="O" title="Jump to O">O</button>
+            <button data-letter="P" title="Jump to P">P</button>
+            <button data-letter="Q" title="Jump to Q">Q</button>
+            <button data-letter="R" title="Jump to R">R</button>
+            <button data-letter="S" title="Jump to S">S</button>
+            <button data-letter="T" title="Jump to T">T</button>
+            <button data-letter="U" title="Jump to U">U</button>
+            <button data-letter="V" title="Jump to V">V</button>
+            <button data-letter="W" title="Jump to W">W</button>
+            <button data-letter="X" title="Jump to X">X</button>
+            <button data-letter="Y" title="Jump to Y">Y</button>
+            <button data-letter="Z" title="Jump to Z">Z</button>
+          </nav>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Authentication Modal -->
+    <div id="authModal" class="modal">
+      <div id="authContent" class="modal-content">
+        <button id="closeAuthModal" class="close-btn">×</button>
+        
+        <div id="authTabs">
+          <button id="loginTab" class="auth-tab active">Sign In</button>
+          <button id="signupTab" class="auth-tab">Sign Up</button>
+        </div>
+        
+        <div id="loginForm" class="auth-form">
+          <div class="auth-header">
+            <h2>Welcome Back</h2>
+            <p class="auth-subtitle">Sign in to access AI features</p>
+          </div>
+          <form id="loginFormElement" class="auth-fields">
+            <input type="email" id="loginEmail" placeholder="Email" required />
+            <input type="password" id="loginPassword" placeholder="Password" required />
+            <div class="auth-submit">
+              <button type="submit" id="loginSubmit">Sign In</button>
+            </div>
+          </form>
+          <div class="auth-actions">
+            <div class="auth-divider">
+              <span>or</span>
+            </div>
+            <button id="googleLoginBtn" class="google-btn">
+              <span class="google-icon">G</span>
+              Continue with Google
+            </button>
+            <div class="auth-links">
+              <a href="#" id="forgotPasswordLink">Forgot password?</a>
+              <span class="auth-separator">•</span>
+              <a href="#" id="skipAuth" class="skip-link">Skip for now</a>
+            </div>
+          </div>
+        </div>
+
+        <div id="signupForm" class="auth-form hidden">
+          <div class="auth-header">
+            <h2>Create Account</h2>
+            <p class="auth-subtitle">Join to unlock AI-powered text rewriting</p>
+          </div>
+          <form id="signupFormElement" class="auth-fields">
+            <input type="email" id="signupEmail" placeholder="Email" required />
+            <input type="password" id="signupPassword" placeholder="Password (min 6 characters)" required minlength="6" />
+            <input type="password" id="confirmPassword" placeholder="Confirm Password" required />
+            <div class="auth-submit">
+              <button type="submit" id="signupSubmit">Create Account</button>
+            </div>
+          </form>
+          <div class="auth-actions">
+            <div class="auth-divider">
+              <span>or</span>
+            </div>
+            <button id="googleSignupBtn" class="google-btn">
+              <span class="google-icon">G</span>
+              Continue with Google
+            </button>
+            <div class="auth-links">
+              <a href="#" id="skipAuthSignup" class="skip-link">Skip for now</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="previewModal">
+      <div id="previewContent">
+        <div id="previewImageContainer">
+          <img id="previewImage" alt="Preview" />
+        </div>
+        <div id="previewControls">
+          <button id="printFromPreview">Print Poster</button>
+          <button id="closePreview">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/js/main.ts"></script>
+  </body>
+</html>

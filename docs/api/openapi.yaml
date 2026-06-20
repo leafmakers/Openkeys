@@ -1,0 +1,210 @@
+openapi: 3.0.3
+info:
+  title: Keyboard City API
+  description: |
+    The Keyboard City API provides endpoints for text processing and manipulation 
+    to enhance the keyboard visualization experience. Built on Supabase Edge Functions.
+  version: 1.0.0
+  contact:
+    name: Keyboard City Support
+    url: https://github.com/your-repo/keyboard-city
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://{project-id}.supabase.co/functions/v1
+    description: Production server
+    variables:
+      project-id:
+        default: your-project-id
+        description: Your Supabase project identifier
+
+security:
+  - BearerAuth: []
+
+paths:
+  /openai:
+    post:
+      summary: Transform text with AI
+      description: |
+        Transforms input text using AI to create poetic, design-focused content 
+        suitable for keyboard visualization. If no text is provided, generates 
+        an inspirational design quote.
+      operationId: transformText
+      tags:
+        - Text Processing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                  description: Input text to transform (optional)
+                  example: "Design is thinking made visual"
+                  maxLength: 500
+            examples:
+              with_text:
+                summary: Transform existing text
+                value:
+                  text: "Design is thinking made visual"
+              empty_text:
+                summary: Generate inspirational quote
+                value:
+                  text: ""
+      responses:
+        '200':
+          description: Successfully transformed text
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - text
+                properties:
+                  text:
+                    type: string
+                    description: Transformed poetic text
+                    example: "Design breathes life into silent thoughts, transforming whispers into visual symphonies."
+              examples:
+                transformed:
+                  summary: Transformed text response
+                  value:
+                    text: "Design breathes life into silent thoughts, transforming whispers into visual symphonies."
+        '400':
+          description: Bad request - Invalid input format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalid_body:
+                  summary: Invalid request body
+                  value:
+                    error: "Invalid request body"
+                    details: "Request body must include a 'text' field"
+                    code: "INVALID_REQUEST_FORMAT"
+                    timestamp: "2024-01-15T10:30:00Z"
+        '401':
+          description: Unauthorized - Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                missing_api_key:
+                  summary: Missing OpenAI API key
+                  value:
+                    error: "OpenAI API key is not configured. Please check your Supabase Edge Function secrets."
+                    details: "The OPENAI_API_KEY environment variable is missing."
+                    code: "MISSING_API_KEY"
+                    timestamp: "2024-01-15T10:30:00Z"
+        '429':
+          description: Too many requests - Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                rate_limit:
+                  summary: Rate limit exceeded
+                  value:
+                    error: "Rate limit exceeded"
+                    details: "Maximum 60 requests per minute allowed"
+                    code: "RATE_LIMIT_EXCEEDED"
+                    timestamp: "2024-01-15T10:30:00Z"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                generation_failed:
+                  summary: Text generation failed
+                  value:
+                    error: "Failed to generate valid text after 3 attempts"
+                    details: "AI service temporarily unavailable"
+                    code: "GENERATION_FAILED"
+                    timestamp: "2024-01-15T10:30:00Z"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase anonymous key for authentication
+
+  schemas:
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+          example: "Invalid request format"
+        details:
+          type: string
+          description: Additional error details (optional)
+          example: "Request body must include a 'text' field"
+        code:
+          type: string
+          description: Machine-readable error code
+          example: "INVALID_REQUEST_FORMAT"
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of when the error occurred
+          example: "2024-01-15T10:30:00Z"
+
+  parameters:
+    ProjectId:
+      name: project-id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Your Supabase project identifier
+
+  responses:
+    Unauthorized:
+      description: Authentication information is missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    
+    NotFound:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    
+    RateLimitExceeded:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+tags:
+  - name: Text Processing
+    description: Endpoints for transforming and processing text content
+  - name: Authentication
+    description: Authentication and authorization related endpoints
+  - name: Analytics
+    description: Usage and performance analytics endpoints (future)

@@ -1,0 +1,4 @@
+[functions."openai"]
+verify_jwt = false
+
+
