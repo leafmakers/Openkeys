@@ -1,4 +1,26 @@
-# OpenKeys — build log
+# OpenKeys
+
+## 🎯 Goal (North Star — keep this in focus across every session)
+
+**OpenKeys turns text into a 3D keyboard skyline** — type a phrase and each key rises by how
+often its letter appears — a typographic data-art / poster tool that's **free, fully
+client-side (no backend, no login, no keys), and usable & configurable by anyone.**
+
+Two things must always stay true:
+
+1. **Library-grade & modular** — a pure engine (config + scene + keyboard + typed events) with
+   composable `(ctx) => teardown` feature modules. **Absolutely customizable** (pick & configure
+   exactly the modules you want) yet **full-featured when you want it** (load them all). Embeddable
+   anywhere via `createOpenKeys()` / `<open-keys>`.
+2. **It just works, everywhere** — responsive, great on mobile, touch/gesture-friendly, fast.
+   Design principle: *good design is one that works* — subtle, natural, genuinely useful changes
+   over flashy ones.
+
+Anything we build should move toward those. If a change doesn't serve them, reconsider it.
+
+---
+
+# Build log
 
 A running log of major milestones, updated after each significant change so anyone
 can see what's happening and why. Newest entries at the top.
@@ -34,6 +56,7 @@ is fully customizable (pick/configure modules) *and* full-featured (load them al
 responsiveness + mobile + touch/gesture, and a senior-product-design UI polish pass.
 
 ### Done & pushed (`leafmakers/Openkeys`, authored `hello@leafmaker.app`)
+- **UX follow-up — Clear button.** The "Clear ×" button floated in its own right-aligned row above the input card (disconnected, odd). Moved it into a small circular **✕ pinned in the card's top-right corner**, shown only when there's text (toggled in `writeDisplay`), with right-padding reserved so text never runs under it. Now available on mobile too (the old row was hidden). Verified show/hide via `setText` + position inside the card on desktop and mobile; console clean.
 - **Adversarial review + fixes.** Ran a multi-dimension correctness review (lifecycle/leaks, text-input, responsive CSS, modules/lib) with every finding independently verified. Fixed the 4 real bugs + polish: (1) focusing the empty field re-inserted the placeholder as editable text → clear without re-running placeholder logic; (2) text-input leaked its `engine.on('textchange')` subscription → captured + unsubscribed in teardown; (3) paste now leaves the caret after the inserted text; (4) `removeFavoriteFont` kept the wrong font active when removing a chip before the cursor → decrement the index; plus `-webkit/-moz-appearance` on the custom selects (Safari double-chevron) and a fallback for the undefined `--accent-hover`. Verified in-browser. (Known pre-existing limitation, intentionally not touched: the font drawer's Popularity/Trending/Date sort only reorders within each A–Z letter group, since the list is always letter-grouped for the quick-jump rail.)
 - **UX pass (part 1) — responsive + touch + decluttering.** Ran a multi-lens senior-design critique (visual-hierarchy / responsive / interaction / minimalist) + synthesis to anchor the work as *decluttering & consolidation, not a redesign*. Changes: removed the vestigial shadow-angle slider (markup + JS wiring + ~170 lines CSS; `engine.setLightAngle` stays a lib API). Collapsed the two-hard-coded-layouts-fighting-with-`!important` into **one responsive system** — a single text dock (`#textDisplayWrapper` = input + WPM/count + frequency bar) that is a top card on desktop and a bottom dock on mobile, children in normal flow (the WPM/bar-under-card overlap bug is gone at the root). Removed the duplicate `#mobileTextDisplay` (one `#textDisplay` everywhere; text-input + font-library updated). Bottom `#controls` is now a tidy row of two matched pills (font picker + Preview Poster). Real mobile **tap-to-type**: a stationary tap on the canvas focuses the field (drags stay orbit gestures), `visualViewport` lifts the dock above the soft keyboard (`--kb-inset`), placeholder reads "Tap to type…" on coarse pointers. Lightened the font-drawer backdrop/shadow and fixed its broken mobile layout (single-column full-width stack instead of an off-screen 2-col grid). `base.css` 1051→~440 lines (all dead auth/AI/heightUp/type/warning CSS gone). Verified across desktop+mobile × light+dark, drawer, poster, settings; `build` + `build:lib` pass; console clean.
 - **Step 8** — sharded `styles/main.css` (3,295 lines) into `styles/tokens.css` (vars + Inter @import + body/canvas), `styles/base.css` (navbar, #controls, shadow slider, global button/.hidden, all @media), and each module's `style.css` (real styles now, not placeholders). Dropped **460 lines** of dead auth + AI-button CSS. Classification was fanned out across the file and validated for gap-free full coverage. Finalized the lib: per-module exports + `MODULE_REGISTRY` + `<open-keys modules="…">` parsing, and fixed `tsconfig.lib.json`'s stale `src/js/*` includes. Verified: identical light/dark render + font drawer, `build` (CSS 50.8 kB) and `build:lib` (now ships `dist-lib/style.css` + all module `.d.ts`) pass, console clean. **Modular refactor complete — `src/js/` is gone; everything is `core/` + `modules/` + `shared/`.**

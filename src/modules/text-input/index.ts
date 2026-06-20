@@ -44,6 +44,7 @@ export const textInput: OpenKeysModule = ({ engine, host, signal }) => {
     const shown = isPlaceholder ? PLACEHOLDER : text;
     if (!skipTextWrite) textDisplay.textContent = shown;
     setPlaceholderAttr(isPlaceholder);
+    if (clearBtn) clearBtn.style.display = !isPlaceholder && text ? 'flex' : 'none';
   };
 
   const setCursorToEnd = (position?: number) => {

@@ -319,8 +319,10 @@ const LIGHT_THEME: ThemeColors = {
   keyText: '#3c4142',
   outline: '#3c4142',
   outlineOpacity: 0.6,
+  // Base outline matches the key edge outline so the footprint reads as one of
+  // the key's edges, not a fainter, separate shape.
   baseOutline: '#3c4142',
-  baseOutlineOpacity: 0.4,
+  baseOutlineOpacity: 0.6,
 };
 
 const DARK_THEME: ThemeColors = {
@@ -331,8 +333,9 @@ const DARK_THEME: ThemeColors = {
   keyText: '#fcfaf6',
   outline: '#fcfaf6',
   outlineOpacity: 0.8,
-  baseOutline: '#ffffff',
-  baseOutlineOpacity: 0.6,
+  // Base outline matches the key edge outline (see LIGHT_THEME note).
+  baseOutline: '#fcfaf6',
+  baseOutlineOpacity: 0.8,
 };
 
 /** The original behavior, expressed as data. Empty config === this. */

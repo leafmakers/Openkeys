@@ -83,12 +83,6 @@
   gap: 12px;
 }
 
-.text-display-clear {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
 /* ---------- Bottom controls (font picker + Preview Poster) ---------- */
 /* A centered row of two self-contained pills — no outer panel, so the font pill
    and the Preview button each read as their own control rather than debris. */
@@ -207,10 +201,6 @@ button.primary:hover,
        aren't clipped at the screen edge (the bar is the dock's last child). */
     padding-bottom: 34px;
     transition: bottom 0.2s ease;
-  }
-
-  .text-display-clear {
-    display: none;
   }
 
   #textDisplay {

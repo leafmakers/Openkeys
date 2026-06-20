@@ -313,15 +313,17 @@ export class Keyboard {
   }
 
   createBaseOutline(position: THREE.Vector3, widthPx: number = this.keySize) {
-    // Create a rectangular outline at the base of the key
-    const baseGeometry = new THREE.PlaneGeometry(widthPx, this.keySize);
+    // Rectangular outline tracing the key's footprint on the floor. Inflated by
+    // the same +0.1 as createKeyOutline so it lines up exactly with the key's
+    // bottom edges instead of sitting as a smaller, inset square.
+    const baseGeometry = new THREE.PlaneGeometry(widthPx + 0.1, this.keySize + 0.1);
     const edges = new THREE.EdgesGeometry(baseGeometry);
     const colors = this.theme();
 
-    // Create material that responds to dark mode
+    // Match the key edge outline so the base reads like the other edges.
     const baseOutlineMaterial = new THREE.LineBasicMaterial({
       color: new THREE.Color(colors.baseOutline),
-      linewidth: 2,
+      linewidth: 3,
       transparent: true,
       opacity: colors.baseOutlineOpacity
     });
