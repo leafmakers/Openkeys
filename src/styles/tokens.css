@@ -44,12 +44,14 @@ body {
   --input-bg: #ffffff;
   --input-border: rgba(60, 65, 66, 0.4);
   --input-text: #3c4142;
-  
-  /* Slider specific - Light theme */
-  --slider-track: rgba(255, 255, 255, 0.25);
-  --slider-thumb: rgba(60, 65, 66, 1.0);
-  --slider-border: rgba(60, 65, 66, 0);
-  --slider-fill: rgba(60, 65, 66, 0.12);
+
+  /* Layout — fluid shell metrics shared by base.css. Tokens exist only where they
+     remove a hard breakpoint cliff; everything else is plain responsive CSS. */
+  --nav-h: 60px;
+  --gutter: clamp(12px, 4vw, 24px);
+  --dock-max: 700px;
+  /* Soft-keyboard inset (mobile): lifted by the text-input module via visualViewport. */
+  --kb-inset: 0px;
 }
 
 /* Dark theme colors */

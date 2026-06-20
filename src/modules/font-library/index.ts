@@ -43,7 +43,6 @@ export const fontLibrary: OpenKeysModule = ({ engine, host, signal }) => {
   const fontNext = q('fontNext');
   const fontLibraryTrigger = q('fontLibraryTrigger');
   const textDisplay = q('textDisplay');
-  const mobileTextDisplay = q('mobileTextDisplay');
   const fontDrawer = q('fontDrawer');
   const fontDrawerBackdrop = q('fontDrawerBackdrop');
   const fontDrawerClose = q('fontDrawerClose');
@@ -93,12 +92,11 @@ export const fontLibrary: OpenKeysModule = ({ engine, host, signal }) => {
     if (!favoriteFonts.length) return;
     const font = favoriteFonts[currentFontIndex];
     if (fontName) fontName.textContent = font.name;
-    [textDisplay, mobileTextDisplay].forEach((el) => {
-      if (!el) return;
-      el.style.fontFamily = font.family;
-      el.style.fontWeight = '500';
-      el.style.letterSpacing = 'normal';
-    });
+    if (textDisplay) {
+      textDisplay.style.fontFamily = font.family;
+      textDisplay.style.fontWeight = '500';
+      textDisplay.style.letterSpacing = 'normal';
+    }
     engine.setKeyCapFont(font.family, font.name);
   };
 
@@ -239,9 +237,7 @@ export const fontLibrary: OpenKeysModule = ({ engine, host, signal }) => {
 
   const quickApplyFont = (font: GoogleFont) => {
     const family = `"${font.family}", ${getCategoryFallback(font.category)}`;
-    [textDisplay, mobileTextDisplay].forEach((el) => {
-      if (el) el.style.fontFamily = family;
-    });
+    if (textDisplay) textDisplay.style.fontFamily = family;
     if (fontName) fontName.textContent = `${font.family} (Preview)`;
     void ensureFontStyles({ id: font.family.toLowerCase(), name: font.family, family, origin: 'google' });
     engine.setKeyCapFont(family, font.family);

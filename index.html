@@ -19,12 +19,12 @@
       </div>
     </nav>
 
-    <!-- Text Display Area -->
+    <!-- Text Display + frequency dock (top card on desktop, bottom dock on mobile) -->
     <div id="textDisplayWrapper">
-      <div style="display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 8px;">
+      <div class="text-display-clear">
         <button id="clearButton">Clear ×</button>
       </div>
-      <div id="textDisplay" contenteditable="true">
+      <div id="textDisplay" contenteditable="true" role="textbox" aria-label="Type a phrase">
         type something…
       </div>
       <div class="text-display-meta">
@@ -36,15 +36,7 @@
       </div>
     </div>
 
-    <div id="mobileTextDisplay" contenteditable="true">type something to see the visualization</div>
-
     <div id="controls">
-      <div style="display: flex; width: 100%; gap: 12px;">
-        <button id="previewAndPrint">Preview Poster</button>
-      </div>
-      <div id="shadowControls">
-        <input type="range" id="shadowAngle" min="0" max="360" value="45" />
-      </div>
       <div id="fontControls">
         <button id="fontPrev" aria-label="Previous font">←</button>
         <button id="fontLibraryTrigger" class="font-name-trigger" aria-haspopup="dialog" aria-expanded="false">
@@ -53,6 +45,7 @@
         </button>
         <button id="fontNext" aria-label="Next font">→</button>
       </div>
+      <button id="previewAndPrint">Preview Poster</button>
     </div>
 
     <!-- Font Drawer -->

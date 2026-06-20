@@ -5,8 +5,6 @@
  *
  * Structural changes (layout, intro) reload the page with the text preserved in
  * the URL; live changes (theme, poster visibility) go straight through the engine.
- * The shadow-angle slider in the bottom controls is wired here too (it drives the
- * key light) — it's slated for removal in the UX pass.
  */
 import type { OpenKeysModule } from '../../core/types';
 import { showToast } from '../../shared/toast';
@@ -20,14 +18,6 @@ function resolve(host: HTMLElement, role: string, id: string): HTMLElement | nul
 }
 
 export const settingsPanel: OpenKeysModule = ({ engine, host, signal }) => {
-  // Shadow-angle slider lives in the bottom #controls cluster, independent of the panel.
-  const shadowAngle = resolve(host, 'shadow-angle', 'shadowAngle') as HTMLInputElement | null;
-  shadowAngle?.addEventListener(
-    'input',
-    (e) => engine.setLightAngle(parseInt((e.target as HTMLInputElement).value, 10)),
-    { signal }
-  );
-
   const toggle = resolve(host, 'settings-toggle', 'settingsToggle');
   if (!engine.config.features.settingsPanel) {
     toggle?.classList.add('hidden');

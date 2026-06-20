@@ -80,20 +80,28 @@
   background: var(--button-primary-hover-bg);
 }
 
+/* The Preview Poster trigger — a self-contained pill matching #fontControls,
+   sitting beside it in the bottom controls row (layout flex set in base.css). */
 #previewAndPrint {
-  width: 100%;
-  margin-top: 0px;
-  background: var(--button-hover-bg);
+  background: var(--bg-color);
   color: var(--text-color);
-  border-color: var(--button-default-border);
-  border: 1px solid #555555;
-  padding: 8px 16px;
-  font-weight: 500;
-  flex: 1 1 100%;
+  border: 1px solid var(--input-border);
+  border-radius: 999px;
+  padding: 9px 18px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+[data-theme="dark"] #previewAndPrint {
+  background: rgba(37, 37, 37, 0.92);
 }
 
 #previewAndPrint:hover {
-  background: var(--button-active-bg);
+  background: var(--button-hover-bg);
+  border-color: var(--text-color);
 }
 
 

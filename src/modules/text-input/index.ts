@@ -1,6 +1,12 @@
 /**
- * text-input — the editable phrase field(s), the live character counter, the clear
- * button, and "type anywhere" capture. Drives the engine and reflects program changes.
+ * text-input — the single editable phrase field, the live character counter, the
+ * clear button, "type anywhere" capture (desktop), and mobile tap-to-type.
+ *
+ * One field, two anchors: the same #textDisplay is a top card on desktop and a
+ * bottom dock on mobile (positioned by base.css). On touch devices there's no
+ * physical keyboard, so document-level keydown ("type anywhere") never fires —
+ * instead a tap on the 3D canvas focuses the field and raises the soft keyboard,
+ * and a visualViewport listener lifts the dock above that keyboard (--kb-inset).
  *
  * Caret rule: on user keystrokes we DON'T rewrite the contenteditable's textContent
  * (that collapses the caret) — only program/animation changes (engine `textchange`
@@ -9,7 +15,8 @@
 import type { OpenKeysModule } from '../../core/types';
 import './style.css';
 
-const PLACEHOLDER = 'type something…';
+const isCoarsePointer = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+const PLACEHOLDER = isCoarsePointer ? 'Tap to type…' : 'type something…';
 
 function resolve(host: HTMLElement, role: string, id: string): HTMLElement | null {
   return host.querySelector<HTMLElement>(`[data-ok-role="${role}"]`) || host.querySelector<HTMLElement>(`#${id}`);
@@ -17,44 +24,41 @@ function resolve(host: HTMLElement, role: string, id: string): HTMLElement | nul
 
 export const textInput: OpenKeysModule = ({ engine, host, signal }) => {
   const textDisplay = resolve(host, 'text-display', 'textDisplay');
-  const mobileDisplay = resolve(host, 'mobile-text-display', 'mobileTextDisplay');
   const counter = resolve(host, 'character-count', 'characterCount');
   const clearBtn = resolve(host, 'clear-button', 'clearButton');
-  const displays = [textDisplay, mobileDisplay].filter(Boolean) as HTMLElement[];
-  if (!displays.length) return () => {};
+  if (!textDisplay) return () => {};
 
   const maxChars = () => engine.config.features.maxCharacters;
+  const isMobile = () => window.innerWidth <= engine.config.scene.mobileBreakpoint;
   let hasInteracted = false;
   let isUpdating = false;
 
-  const setPlaceholderAttr = (el: HTMLElement, on: boolean) => {
-    if (on) el.setAttribute('data-placeholder', 'true');
-    else el.removeAttribute('data-placeholder');
+  const setPlaceholderAttr = (on: boolean) => {
+    if (on) textDisplay.setAttribute('data-placeholder', 'true');
+    else textDisplay.removeAttribute('data-placeholder');
   };
 
-  /** Write the editable text + placeholder state to the display nodes. */
+  /** Write the editable text + placeholder state to the display node. */
   const writeDisplay = (text: string, skipTextWrite = false) => {
     const isPlaceholder = !hasInteracted && !text;
     const shown = isPlaceholder ? PLACEHOLDER : text;
-    displays.forEach((el) => {
-      if (!skipTextWrite) el.textContent = shown;
-      setPlaceholderAttr(el, isPlaceholder);
-    });
+    if (!skipTextWrite) textDisplay.textContent = shown;
+    setPlaceholderAttr(isPlaceholder);
   };
 
-  const setCursorToEnd = (element: HTMLElement, position?: number) => {
+  const setCursorToEnd = (position?: number) => {
     try {
       const range = document.createRange();
       const selection = window.getSelection();
-      if (element.childNodes.length > 0) {
-        const node = element.childNodes[0];
+      if (textDisplay.childNodes.length > 0) {
+        const node = textDisplay.childNodes[0];
         const len = node.textContent?.length || 0;
         const pos = position !== undefined ? Math.min(position, len) : len;
         range.setStart(node, pos);
         range.setEnd(node, pos);
       } else {
-        range.setStart(element, 0);
-        range.setEnd(element, 0);
+        range.setStart(textDisplay, 0);
+        range.setEnd(textDisplay, 0);
       }
       selection?.removeAllRanges();
       selection?.addRange(range);
@@ -64,11 +68,11 @@ export const textInput: OpenKeysModule = ({ engine, host, signal }) => {
   };
 
   const getDisplayText = (): string => {
-    const text = textDisplay?.textContent?.trim() || mobileDisplay?.textContent?.trim() || '';
+    const text = textDisplay.textContent?.trim() || '';
     return hasInteracted ? text : '';
   };
 
-  /** Apply text from a non-focused path (type-anywhere / programmatic): writes display + drives engine. */
+  /** Apply text from a non-focused path (type-anywhere / programmatic). */
   const applyText = (text: string, skipTextWrite = false) => {
     writeDisplay(text, skipTextWrite);
     if (isUpdating) return;
@@ -80,78 +84,70 @@ export const textInput: OpenKeysModule = ({ engine, host, signal }) => {
     }
   };
 
-  // --- Focused editing on the contenteditable nodes ---
-  const handleInput = (element: HTMLElement) => {
+  // --- Focused editing on the contenteditable ---
+  const handleInput = () => {
     if (isUpdating) return;
-    const text = element.textContent || '';
+    const text = textDisplay.textContent || '';
     if (!hasInteracted && text.trim()) hasInteracted = true;
 
     if (text.length > maxChars()) {
       const sel = window.getSelection();
       const cursor = sel && sel.rangeCount > 0 ? sel.getRangeAt(0).startOffset : 0;
       const truncated = text.slice(0, maxChars());
-      element.textContent = truncated;
-      setCursorToEnd(element, Math.min(cursor, truncated.length));
-      applyText(truncated); // rewrite + drive
+      textDisplay.textContent = truncated;
+      setCursorToEnd(Math.min(cursor, truncated.length));
+      applyText(truncated);
       return;
     }
     // Normal typing: don't rewrite textContent (preserve caret), just drive the engine.
     applyText(text, true);
   };
 
-  displays.forEach((element) => {
-    element.addEventListener('input', () => handleInput(element), { signal });
-    element.addEventListener(
-      'focus',
-      () => {
-        if (!hasInteracted) {
-          element.textContent = '';
-          writeDisplay('');
-        }
-      },
-      { signal }
-    );
-    element.addEventListener(
-      'keydown',
-      (e: KeyboardEvent) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          (e.target as HTMLElement).blur();
-        }
-      },
-      { signal }
-    );
-    element.addEventListener(
-      'paste',
-      (e: ClipboardEvent) => {
+  textDisplay.addEventListener('input', handleInput, { signal });
+  textDisplay.addEventListener(
+    'focus',
+    () => {
+      if (!hasInteracted) {
+        textDisplay.textContent = '';
+        writeDisplay('');
+      }
+    },
+    { signal }
+  );
+  textDisplay.addEventListener(
+    'keydown',
+    (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
         e.preventDefault();
-        const clean = (e.clipboardData?.getData('text') || '').replace(/\n/g, ' ').trim();
-        if (!hasInteracted) {
-          hasInteracted = true;
-          element.textContent = '';
-        }
-        const isMobile = window.innerWidth <= engine.config.scene.mobileBreakpoint;
-        if (isMobile && element === mobileDisplay) {
-          element.textContent = ((element.textContent || '') + clean).slice(0, maxChars());
-        } else {
-          const sel = window.getSelection();
-          if (!sel) return;
-          const cursor = sel.getRangeAt(0).startOffset;
-          const cur = element.textContent || '';
-          element.textContent = (cur.slice(0, cursor) + clean + cur.slice(cursor)).slice(0, maxChars());
-        }
-        applyText(element.textContent || '');
-      },
-      { signal }
-    );
-  });
+        (e.target as HTMLElement).blur();
+      }
+    },
+    { signal }
+  );
+  textDisplay.addEventListener(
+    'paste',
+    (e: ClipboardEvent) => {
+      e.preventDefault();
+      const clean = (e.clipboardData?.getData('text') || '').replace(/\n/g, ' ').trim();
+      if (!hasInteracted) {
+        hasInteracted = true;
+        textDisplay.textContent = '';
+      }
+      const sel = window.getSelection();
+      const cursor = sel && sel.rangeCount > 0 ? sel.getRangeAt(0).startOffset : (textDisplay.textContent || '').length;
+      const cur = textDisplay.textContent || '';
+      textDisplay.textContent = (cur.slice(0, cursor) + clean + cur.slice(cursor)).slice(0, maxChars());
+      setCursorToEnd();
+      applyText(textDisplay.textContent || '');
+    },
+    { signal }
+  );
 
-  // --- Type anywhere (when no field is focused and no modal is open) ---
-  const isInputFocused = () =>
-    document.activeElement?.tagName === 'INPUT' ||
-    document.activeElement?.tagName === 'TEXTAREA' ||
-    textDisplay?.matches(':focus') ||
-    mobileDisplay?.matches(':focus');
+  // --- Type anywhere (desktop hardware keyboard; mobile has no keydowns until focus) ---
+  const isInputFocused = () => {
+    const a = document.activeElement;
+    return a?.tagName === 'INPUT' || a?.tagName === 'TEXTAREA' || (a as HTMLElement)?.isContentEditable === true;
+  };
   const isModalOpen = () => document.getElementById('previewModal')?.style.display === 'block';
 
   document.addEventListener(
@@ -165,8 +161,8 @@ export const textInput: OpenKeysModule = ({ engine, host, signal }) => {
         if (current) applyText(current.slice(0, -1));
         return;
       }
-      // Mobile space inserts a space; desktop space is reserved for the poster trigger.
-      if ((key === ' ' || e.code === 'Space') && window.innerWidth <= engine.config.scene.mobileBreakpoint) {
+      // Mobile space (with a hardware keyboard) inserts a space; desktop space is the poster trigger.
+      if ((key === ' ' || e.code === 'Space') && isMobile()) {
         e.preventDefault();
         if (current.length < maxChars()) {
           hasInteracted = true;
@@ -181,6 +177,43 @@ export const textInput: OpenKeysModule = ({ engine, host, signal }) => {
     },
     { signal }
   );
+
+  // --- Mobile tap-to-type: a tap (not an orbit drag) on the canvas focuses the field ---
+  const canvas = engine.canvas;
+  let downX = 0, downY = 0, downT = 0;
+  canvas.addEventListener(
+    'pointerdown',
+    (e: PointerEvent) => {
+      downX = e.clientX;
+      downY = e.clientY;
+      downT = performance.now();
+    },
+    { signal, passive: true }
+  );
+  canvas.addEventListener(
+    'pointerup',
+    (e: PointerEvent) => {
+      if (!isMobile() || isModalOpen()) return;
+      const moved = Math.hypot(e.clientX - downX, e.clientY - downY);
+      // Only a quick, near-stationary tap counts — a drag is an orbit gesture, leave it alone.
+      if (moved < 10 && performance.now() - downT < 500) {
+        textDisplay.focus({ preventScroll: true });
+        setCursorToEnd();
+      }
+    },
+    { signal }
+  );
+
+  // --- Lift the bottom dock above the soft keyboard (mobile) ---
+  const vv = window.visualViewport;
+  if (vv) {
+    const onViewport = () => {
+      const inset = window.innerHeight - vv.height - vv.offsetTop;
+      document.documentElement.style.setProperty('--kb-inset', inset > 40 ? `${Math.round(inset)}px` : '0px');
+    };
+    vv.addEventListener('resize', onViewport, { signal });
+    vv.addEventListener('scroll', onViewport, { signal });
+  }
 
   // --- Clear button ---
   clearBtn?.addEventListener(
@@ -207,6 +240,6 @@ export const textInput: OpenKeysModule = ({ engine, host, signal }) => {
   if (counter) counter.textContent = `${(engine.currentText || '').length}/${maxChars()} characters`;
 
   return () => {
-    /* listeners removed via the shared AbortSignal */
+    document.documentElement.style.removeProperty('--kb-inset');
   };
 };
