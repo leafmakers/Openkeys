@@ -5,6 +5,8 @@ import { textInput } from '../modules/text-input';
 import { characterBar } from '../modules/character-bar';
 import { typingSpeed } from '../modules/typing-speed';
 import { themeToggle } from '../modules/theme-toggle';
+import { poster } from '../modules/poster';
+import { settingsPanel } from '../modules/settings-panel';
 import { UI } from './ui';
 
 function showFatalError(error: unknown) {
@@ -41,12 +43,16 @@ document.addEventListener('DOMContentLoaded', () => {
         : config.theme.mode;
     engine.setTheme(initialMode);
 
-    // Feature modules (gated by config.features). More are extracted in later steps.
+    // Feature modules. Most are gated by config.features at compose time; `poster` and
+    // `settingsPanel` are always composed because the settings panel toggles their
+    // visibility live (each respects its own config flag internally). More extracted later.
     const modules = [
       config.features.textInput && textInput,
       config.features.characterBar && characterBar,
       config.features.typingSpeed && typingSpeed,
       config.features.themeToggle && themeToggle,
+      poster,
+      settingsPanel,
     ].filter(Boolean) as import('../core/types').OpenKeysModule[];
     const teardownModules = composeModules(engine, document.body, modules);
 

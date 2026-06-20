@@ -1,0 +1,3 @@
+/* poster — preview modal + download button styles.
+   Live styles currently ship from src/styles/main.css (#previewModal, #previewContent,
+   #previewControls, #previewAndPrint, …); they move here in the CSS-sharding step. */

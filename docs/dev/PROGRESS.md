@@ -12,6 +12,7 @@ is fully customizable (pick/configure modules) *and* full-featured (load them al
 responsiveness + mobile + touch/gesture, and a senior-product-design UI polish pass.
 
 ### Done & pushed (`leafmakers/Openkeys`, authored `hello@leafmaker.app`)
+- **Step 6** — extracted `modules/poster` (lazy modal; captures ONLY via `engine.exportImage()` so it's never blank; private `canvas-2d.ts` for the typographic overlay; title from `engine.activeFont` → "System" fallback; Esc/Ctrl+Enter/Space shortcuts) + `modules/settings-panel` (layout/theme/intro/poster + shareable URL; owns the shadow-angle slider; live poster toggle via `setConfig`→`config` event). Added `shared/toast.ts`. `ui.ts` down to ~1.3k lines (font library only). Verified: poster opens with a real PNG, Esc closes, theme segment + live poster-visibility toggle work, no console errors.
 - **Step 1** — `core/` scaffolding: `emitter.ts`, `types.ts`, `compose.ts`; moved config/scene/keyboard/utils into `core/`.
 - **Step 2** — `createEngine()` owns the render loop + lifecycle; app & lib route through it; removed `scene as any` casts.
 - **Step 3** — keyboard fully decoupled from the DOM (emits `textchange`/`data`); engine owns `currentText`.
@@ -20,7 +21,6 @@ responsiveness + mobile + touch/gesture, and a senior-product-design UI polish p
 - **Step 5b** — extracted `modules/text-input` (contenteditable, paste, type-anywhere, caret preservation, counter, clear button). Engine gained `hasKey()`. Bootstrap applies initial `?text=` on `ready`. `ui.ts` down to ~2036 lines. (Gotcha: every module imports `./style.css`, so the file must exist or the whole import chain dies — create the placeholder when scaffolding a module.)
 
 ### Remaining
-- **Step 6** — `poster` + `settings-panel` modules; `shared/toast.ts`.
 - **Step 7** — `font-library` module (+ az-scroll-guide, google-fonts); then delete `ui.ts`.
 - **Step 8** — CSS sharding (`tokens.css`/`base.css` + per-module) + finalize lib exports & `<open-keys modules="…">`.
 - **UX pass** — responsiveness, mobile layout, touch/gesture (orbit/pinch/tap), and design polish

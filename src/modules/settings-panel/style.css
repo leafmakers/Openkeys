@@ -1,0 +1,4 @@
+/* settings-panel — gear-button slide-over styles.
+   Live styles currently ship from src/styles/main.css (.settings-panel, .settings-header,
+   .settings-field, .settings-segment, .settings-check, .settings-share, …); they move
+   here in the CSS-sharding step. */
