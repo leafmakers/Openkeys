@@ -469,6 +469,16 @@ export class Keyboard {
     });
   }
 
+  /** Whether a given label has a key in the current layout. */
+  hasKey(label: string): boolean {
+    return !!this.keyObjects[label];
+  }
+
+  /** Read-only snapshot of the current per-key values, for the `data` event. */
+  snapshot(): { counts: Record<string, number>; heights: Record<string, number> } {
+    return { counts: { ...this.keyTypeCounts }, heights: { ...this.keyHeights } };
+  }
+
   async animateKeyDown(key: string, startHeight: number) {
     return new Promise<void>(resolve => {
       const steps = 60;

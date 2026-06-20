@@ -303,4 +303,11 @@ export class Scene {
     this.render();
     return this.renderer.domElement.toDataURL('image/png');
   }
+
+  dispose() {
+    this.renderer.dispose();
+    this.controls.dispose();
+    const el = this.renderer.domElement;
+    el.parentNode?.removeChild(el);
+  }
 }

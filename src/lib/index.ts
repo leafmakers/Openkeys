@@ -1,113 +1,54 @@
 /**
  * OpenKeys — embeddable library entry point.
  *
- * The library ships the 3D visualization *engine* (scene + keyboard) with a small
- * programmatic API and an `<open-keys>` web component. The full app chrome
- * (navbar, font drawer, settings panel, poster modal) lives in the app, not here —
- * an embedder brings their own UI and drives the engine through this API.
+ * Ships the pure engine (config + scene + keyboard + loop + typed events), a
+ * `createOpenKeys()` factory, the `<open-keys>` web component, and (added as
+ * modules are extracted) à-la-carte feature modules. Embedders compose exactly
+ * what they want:
  *
- *   import { createOpenKeys } from 'openkeys';
- *   const kb = createOpenKeys(document.getElementById('viz'), { text: 'hello', layout: { preset: 'dvorak', rows: DVORAK_ROWS } });
+ *   import { createOpenKeys, DVORAK_ROWS } from 'openkeys';
+ *   const kb = createOpenKeys(el, { text: 'hello', layout: { rows: DVORAK_ROWS, preset: 'dvorak' } });
  *   kb.setText('world');
  *   const png = kb.exportPoster();
  *   kb.destroy();
  *
- * Or declaratively:
- *   <open-keys text="hello" layout="dvorak" theme="dark"></open-keys>
+ * Or declaratively:  <open-keys text="hello" layout="dvorak" theme="dark"></open-keys>
  */
 
-import { Scene } from '../core/scene';
-import { Keyboard } from '../core/keyboard';
-import {
-  resolveConfig,
-  LAYOUT_PRESETS,
-  type OpenKeysConfig,
-  type DeepPartial,
-} from '../core/config';
+import { createEngine } from '../core/engine';
+import { composeModules } from '../core/compose';
+import { resolveConfig, LAYOUT_PRESETS, type OpenKeysConfig, type DeepPartial } from '../core/config';
+import type { OpenKeysEngine, OpenKeysModule } from '../core/types';
 
-export interface OpenKeysInstance {
-  /** Re-render heights from a text string (frequency mode). */
-  setText(text: string): void;
-  /** Drive heights directly from a label→value map (switches to static data mode). */
-  setData(values: Record<string, number>): void;
-  /** Toggle light/dark at runtime. */
-  setTheme(mode: 'light' | 'dark'): void;
-  /** Return the current frame as a PNG data URL. */
-  exportPoster(): string;
-  /** The resolved, live config object. */
-  readonly config: OpenKeysConfig;
-  /** Tear down: stop the loop, dispose GPU resources, remove the canvas and observers. */
-  destroy(): void;
-}
+export type OpenKeysInstance = OpenKeysEngine & { exportPoster(): string };
 
 /**
- * Mount an OpenKeys visualization into `element`. The element should have a
- * non-zero size (the renderer fills it and follows it via ResizeObserver).
+ * Mount an OpenKeys visualization into `element` (which should have a non-zero size).
+ * Pass the feature `modules` you want; the default is engine-only.
  */
 export function createOpenKeys(
   element: HTMLElement,
-  partial: DeepPartial<OpenKeysConfig> = {}
+  partial: DeepPartial<OpenKeysConfig> = {},
+  modules: OpenKeysModule[] = []
 ): OpenKeysInstance {
   const config = resolveConfig(partial);
-  const scene = new Scene(config, element);
-  const keyboard = new Keyboard(scene, config);
+  const engine = createEngine(element, config);
+  const teardownModules = composeModules(engine, element, modules);
 
-  const s = scene as any;
-  let running = true;
-  let rafId = 0;
-  const loop = () => {
-    if (!running) return;
-    rafId = requestAnimationFrame(loop);
-    keyboard.update();
-    s.controls.update();
-    s.renderer.render(s.scene, s.camera);
-  };
-  loop();
+  // replay-on-subscribe: fires immediately if the mesh is already built
+  engine.on('ready', () => {
+    const text = engine.currentText || config.text;
+    if (text) engine.setText(text);
+  });
+  engine.start();
 
-  const resize = () => scene.handleResize();
-  const observer = new ResizeObserver(resize);
-  observer.observe(element);
-
-  if (config.text) {
-    keyboard.setOnReady(() => keyboard.updateFromText(config.text));
-  }
-
-  return {
-    config,
-    setText(text: string) {
-      config.data.mode = 'frequency';
-      config.text = text;
-      keyboard.setOnReady(() => keyboard.updateFromText(text));
-    },
-    setData(values: Record<string, number>) {
-      config.data.mode = 'static';
-      config.data.staticValues = values;
-      keyboard.setOnReady(() => keyboard.processTextInput(''));
-    },
-    setTheme(mode: 'light' | 'dark') {
-      config.theme.mode = mode;
-      const dark = mode === 'dark';
-      s.scene.background.set(dark ? config.theme.dark.background : config.theme.light.background);
-      keyboard.updateTheme(dark);
-      scene.updateFloorTheme(dark);
-    },
-    exportPoster() {
-      return scene.generateImage();
-    },
+  return Object.assign(engine, {
+    exportPoster: () => engine.exportImage(),
     destroy() {
-      running = false;
-      cancelAnimationFrame(rafId);
-      observer.disconnect();
-      try {
-        s.renderer.dispose();
-        s.controls.dispose();
-      } catch {
-        /* ignore */
-      }
-      const canvas: HTMLCanvasElement | undefined = s.renderer?.domElement;
-      canvas?.parentNode?.removeChild(canvas);
+      teardownModules();
+      engine.destroy();
     },
-  };
+  });
 }
 
 /** `<open-keys text="..." layout="qwerty|azerty|dvorak|numpad" theme="light|dark">` */
@@ -156,9 +97,8 @@ export class OpenKeysElement extends HTMLElement {
     if (name === 'text') this.instance.setText(newVal || '');
     else if (name === 'theme' && (newVal === 'light' || newVal === 'dark')) {
       this.instance.setTheme(newVal);
-    }
-    // `layout` changes require a rebuild — re-mount the element.
-    else if (name === 'layout') {
+    } else if (name === 'layout') {
+      // layout change requires a rebuild — re-mount the element
       this.disconnectedCallback();
       this.connectedCallback();
     }
@@ -169,5 +109,8 @@ if (typeof customElements !== 'undefined' && !customElements.get('open-keys')) {
   customElements.define('open-keys', OpenKeysElement);
 }
 
-// Re-export the config surface so embedders can build configs with full types.
+// Public surface
+export { createEngine } from '../core/engine';
+export { composeModules } from '../core/compose';
+export type { OpenKeysEngine, OpenKeysModule, OpenKeysEvents, Teardown, ModuleContext } from '../core/types';
 export * from '../core/config';

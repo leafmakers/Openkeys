@@ -86,6 +86,7 @@ export class UI {
   private isDarkMode: boolean = false;
   private config: OpenKeysConfig;
   private settingsPanelEl: HTMLElement | null = null;
+  private engine: any;
   private keyboard: Record<string, any>;
   private renderer: THREE.WebGLRenderer;
   private maxCharacters: number;
@@ -129,9 +130,10 @@ export class UI {
     isTyping: boolean;
   };
 
-  constructor(keyboard: any, renderer: any, config: OpenKeysConfig) {
-    this.keyboard = keyboard;
-    this.renderer = renderer;
+  constructor(engine: any, config: OpenKeysConfig) {
+    this.engine = engine;
+    this.keyboard = engine.keyboard;
+    this.renderer = engine.renderer;
     this.config = config;
     this.maxCharacters = config.features.maxCharacters;
     this.isUpdating = false;
@@ -203,7 +205,7 @@ export class UI {
     const initialText = (this.config.text || '').slice(0, this.maxCharacters);
     if (initialText) {
       this.hasInteracted = true;
-      this.keyboard.setOnReady(() => this.updateDisplays(initialText));
+      this.engine.on('ready', () => this.updateDisplays(initialText));
     } else {
       this.updateDisplays('');
     }
