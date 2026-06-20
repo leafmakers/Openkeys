@@ -10,6 +10,7 @@ import type {
   DataConfig,
   ThemeColors,
   LayoutConfig,
+  Cell,
 } from './config';
 
 /**
@@ -107,7 +108,7 @@ export interface OpenKeysEngine {
 
   setTheme(mode: 'light' | 'dark'): void;
   setKeyCapFont(family: string, name: string): void;
-  setLayout(rows: string[][], preset?: LayoutConfig['preset']): void;
+  setLayout(rows: Cell[][], preset?: LayoutConfig['preset']): void;
   setConfig(partial: DeepPartial<OpenKeysConfig>): void;
   setLightAngle(deg: number): void;
   increaseHeight(): void;

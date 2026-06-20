@@ -80,6 +80,7 @@ export const settingsPanel: OpenKeysModule = ({ engine, host, signal }) => {
           <option value="azerty">AZERTY</option>
           <option value="dvorak">Dvorak</option>
           <option value="numpad">Numpad</option>
+          <option value="full">Full (Mac) — experimental</option>
         </select>
       </label>
       <div class="settings-field">

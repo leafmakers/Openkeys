@@ -2,12 +2,25 @@ import * as THREE from 'three';
 import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
 import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
 import { Scene } from './scene';
-import type { OpenKeysConfig, ThemeColors } from './config';
+import type { OpenKeysConfig, ThemeColors, Cell, KeyDef } from './config';
 import type { Emitter } from './emitter';
 import type { OpenKeysEvents } from './types';
 
 type Emit = Emitter<OpenKeysEvents>['emit'];
 const noopEmit: Emit = () => {};
+
+/** Normalize a layout cell (plain string or rich descriptor) to a full KeyDef. */
+function normalizeCell(cell: Cell): Required<KeyDef> {
+  if (typeof cell === 'string') {
+    return { id: cell, label: cell, w: 1, typeable: true };
+  }
+  return {
+    id: cell.id,
+    label: cell.label,
+    w: cell.w ?? 1,
+    typeable: cell.typeable ?? true,
+  };
+}
 
 export class Keyboard {
   private scene: Scene;
@@ -15,7 +28,11 @@ export class Keyboard {
   private emit: Emit;
   private rowStagger: number;
   private keyGap: number;
-  private keyMap: string[][];
+  private originX: number;
+  private originZ: number;
+  private keyMap: Cell[][];
+  /** Cap label per key id (id may differ from label for modifiers/duplicates). */
+  private keyLabels: Record<string, string>;
   private keyObjects: Record<string, THREE.Mesh>;
   private textObjects: Record<string, THREE.Mesh>;
   private outlineObjects: Record<string, THREE.LineSegments>;
@@ -68,9 +85,14 @@ export class Keyboard {
     this.keyMap = config.layout.rows;
     this.rowStagger = config.layout.rowStagger;
     this.keyGap = config.layout.keyGap;
+    // Board placement. Defaults reproduce the classic hardcoded offsets; wide
+    // layouts (e.g. 'full') override these to re-centre the larger footprint.
+    this.originX = config.layout.originX ?? -50;
+    this.originZ = config.layout.originZ ?? -20;
 
     // Initialize properties
     // Key-related objects and states
+    this.keyLabels = {};
     this.keyObjects = {};
     this.textObjects = {};
     this.outlineObjects = {};
@@ -193,12 +215,18 @@ export class Keyboard {
     });
 
     this.keyMap.forEach((row, rowIndex) => {
-      const z = rowIndex * this.spacing;
-      let x = rowIndex * this.rowStagger;
+      const z = this.originZ + rowIndex * this.spacing;
+      // Cursor tracks the left edge of the next key, advancing by each key's
+      // actual width so variable-width keys (space bar, modifiers) line up and
+      // every row ends flush — producing the rectangular silhouette.
+      let cursor = this.originX + rowIndex * this.rowStagger;
 
-      row.forEach((key) => {
-        this.createKeyWithOutlineAndText(key, x, z, this.currentFont, outlineMaterial);
-        x += this.keySize + this.keyGap;
+      row.forEach((cell) => {
+        const def = normalizeCell(cell);
+        const widthPx = def.w * this.keySize + (def.w - 1) * this.keyGap;
+        const centerX = cursor + widthPx / 2;
+        this.createKeyWithOutlineAndText(def, centerX, z, widthPx, this.currentFont, outlineMaterial);
+        cursor += widthPx + this.keyGap;
       });
     });
 
@@ -212,53 +240,56 @@ export class Keyboard {
     if (this.isBuilt) cb();
   }
 
-  createKeyWithOutlineAndText(key: string, x: number, z: number, font: any, outlineMaterial: THREE.LineBasicMaterial) {
+  createKeyWithOutlineAndText(def: Required<KeyDef>, centerX: number, centerZ: number, widthPx: number, font: any, outlineMaterial: THREE.LineBasicMaterial) {
+    const { id, label } = def;
+
     // Create main key mesh
-    const geometry = new THREE.BoxGeometry(this.keySize, this.keySize, this.keySize);
+    const geometry = new THREE.BoxGeometry(widthPx, this.keySize, this.keySize);
     const keyMaterials = this.createKeyMaterial();
     const mesh = new THREE.Mesh(geometry, keyMaterials);
-    this.setupKeyMesh(mesh, x, z);
-    
+    this.setupKeyMesh(mesh, centerX, centerZ);
+
     // Create key outline
-    const outline = this.createKeyOutline(mesh.position, outlineMaterial);
-    
+    const outline = this.createKeyOutline(mesh.position, outlineMaterial, widthPx);
+
     // Create base outline
-    const baseOutline = this.createBaseOutline(mesh.position);
-    
+    const baseOutline = this.createBaseOutline(mesh.position, widthPx);
+
     // Create text material for this key
     const textMaterial = new THREE.MeshPhysicalMaterial({
       color: new THREE.Color(this.theme().keyText),
       metalness: 0,
       roughness: 1
     });
-    
+
     // Create key text
-    const textMesh = this.createKeyText(key, font, textMaterial);
+    const textMesh = this.createKeyText(label, font, textMaterial);
     mesh.add(textMesh);
-    
-    // Store references
-    this.keyObjects[key] = mesh;
-    this.keyMaterials[key] = keyMaterials as THREE.MeshPhysicalMaterial[];
-    this.textMaterials[key] = textMaterial;
-    this.outlineObjects[key] = outline;
-    this.baseOutlineObjects[key] = baseOutline;
-    this.textObjects[key] = textMesh;
-    this.keyHeights[key] = 0;
-    this.keyWaves[key] = { time: 0, active: false };
-    this.keyTypeCounts[key] = 0;
+
+    // Store references (keyed by unique id; data keys use the character as id)
+    this.keyLabels[id] = label;
+    this.keyObjects[id] = mesh;
+    this.keyMaterials[id] = keyMaterials as THREE.MeshPhysicalMaterial[];
+    this.textMaterials[id] = textMaterial;
+    this.outlineObjects[id] = outline;
+    this.baseOutlineObjects[id] = baseOutline;
+    this.textObjects[id] = textMesh;
+    this.keyHeights[id] = 0;
+    this.keyWaves[id] = { time: 0, active: false };
+    this.keyTypeCounts[id] = 0;
   }
 
-  setupKeyMesh(mesh: THREE.Mesh, x: number, z: number) {
-    mesh.position.set(x + this.keySize/2 - 50, 0, z - 20);
+  setupKeyMesh(mesh: THREE.Mesh, centerX: number, centerZ: number) {
+    mesh.position.set(centerX, 0, centerZ);
     mesh.scale.y = 0.01;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     this.container.add(mesh);
   }
 
-  createKeyOutline(position: THREE.Vector3, _material: THREE.LineBasicMaterial) {
+  createKeyOutline(position: THREE.Vector3, _material: THREE.LineBasicMaterial, widthPx: number = this.keySize) {
     const outlineGeometry = new THREE.BoxGeometry(
-      this.keySize + 0.1,
+      widthPx + 0.1,
       this.keySize + 0.1,
       this.keySize + 0.1
     );
@@ -281,9 +312,9 @@ export class Keyboard {
     return outline;
   }
 
-  createBaseOutline(position: THREE.Vector3) {
-    // Create a square outline at the base of the key
-    const baseGeometry = new THREE.PlaneGeometry(this.keySize, this.keySize);
+  createBaseOutline(position: THREE.Vector3, widthPx: number = this.keySize) {
+    // Create a rectangular outline at the base of the key
+    const baseGeometry = new THREE.PlaneGeometry(widthPx, this.keySize);
     const edges = new THREE.EdgesGeometry(baseGeometry);
     const colors = this.theme();
 
@@ -303,17 +334,33 @@ export class Keyboard {
     return baseOutline;
   }
 
-  createKeyText(key: string, font: any, material: THREE.MeshPhysicalMaterial) {
-    const textGeometry = new TextGeometry(key, {
-      font: font,
-      size: this.config.typography.textSize,
-      height: 0,
-      curveSegments: this.config.typography.curveSegments,
-    });
-    textGeometry.computeBoundingBox();
-    const textMesh = new THREE.Mesh(textGeometry, material);
-    
-    const textWidth = textGeometry.boundingBox!.max.x - textGeometry.boundingBox!.min.x;
+  createKeyText(label: string, font: any, material: THREE.MeshPhysicalMaterial) {
+    // Blank caps (e.g. the space bar) get an empty, geometry-less mesh so the
+    // font-rebuild path and dictionaries stay uniform across all keys.
+    let geometry: THREE.BufferGeometry = new THREE.BufferGeometry();
+    if (label && label.trim()) {
+      // Multi-character labels (modifiers like "shift"/"return") use a smaller
+      // size so they fit on the cap.
+      const size =
+        label.length > 1 ? this.config.typography.textSize * 0.72 : this.config.typography.textSize;
+      try {
+        const textGeometry = new TextGeometry(label, {
+          font: font,
+          size,
+          height: 0,
+          curveSegments: this.config.typography.curveSegments,
+        });
+        textGeometry.computeBoundingBox();
+        geometry = textGeometry;
+      } catch {
+        // Glyph missing from this font — leave the cap blank rather than crash.
+        geometry = new THREE.BufferGeometry();
+      }
+    }
+
+    const textMesh = new THREE.Mesh(geometry, material);
+    const bb = geometry.boundingBox;
+    const textWidth = bb ? bb.max.x - bb.min.x : 0;
     textMesh.position.set(
       -textWidth/2,
       this.keySize/2 + 0.1,
@@ -825,8 +872,8 @@ export class Keyboard {
         roughness: 1
       });
 
-      // Create new text mesh with current font
-      const newTextMesh = this.createKeyText(key, this.currentFont, textMaterial);
+      // Create new text mesh with current font (use the cap's label, not its id)
+      const newTextMesh = this.createKeyText(this.keyLabels[key] ?? key, this.currentFont, textMaterial);
       
       // Apply font-specific styling
       this.applyFontStyling(newTextMesh, fontName);

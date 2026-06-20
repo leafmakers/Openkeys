@@ -57,9 +57,28 @@ export interface KeyCapFont {
   url: string;
 }
 
+/**
+ * A rich key descriptor. Use this (instead of a bare string) when a key needs a
+ * width other than 1u, a label that differs from its identity, or a duplicate
+ * label (e.g. two "shift" keys need distinct ids).
+ */
+export interface KeyDef {
+  /** Unique id within the layout. For data keys this IS the typed character. */
+  id: string;
+  /** Glyph drawn on the cap. Empty string = a blank cap (e.g. the space bar). */
+  label: string;
+  /** Width in key units (1u = one standard key). Defaults to 1. */
+  w?: number;
+  /** Whether the key grows in response to typed text. Defaults to true. */
+  typeable?: boolean;
+}
+
+/** A cell is either a plain label (1u typeable data key) or a rich descriptor. */
+export type Cell = string | KeyDef;
+
 export interface LayoutConfig {
-  /** Grid of labels. Default = QWERTY. Any grid works (azerty, dvorak, numpad, custom). */
-  rows: string[][];
+  /** Grid of cells. Default = QWERTY. Any grid works (azerty, dvorak, numpad, full, custom). */
+  rows: Cell[][];
   /** Cube edge length for each key. */
   keySize: number;
   /** Z distance between rows. */
@@ -68,8 +87,15 @@ export interface LayoutConfig {
   rowStagger: number;
   /** Horizontal gap added between keys within a row. */
   keyGap: number;
+  /**
+   * World-space left edge / front row used to position the board. Optional —
+   * defaults (-50 / -20) reproduce the classic hardcoded placement. Wide
+   * layouts (e.g. 'full') override these to re-centre the larger footprint.
+   */
+  originX?: number;
+  originZ?: number;
   /** Named preset, for the settings UI. */
-  preset?: 'qwerty' | 'azerty' | 'dvorak' | 'numpad' | 'custom';
+  preset?: 'qwerty' | 'azerty' | 'dvorak' | 'numpad' | 'full' | 'custom';
 }
 
 export interface DataConfig {
@@ -237,11 +263,52 @@ export const NUMPAD_ROWS: string[][] = [
   ['0'],
 ];
 
-export const LAYOUT_PRESETS: Record<string, string[][]> = {
+// --- Full layout (experimental) ---------------------------------------------
+// A Mac-style ~60% board. The 36 alphanumeric keys are the same typeable data
+// keys as QWERTY; everything else is an inert structural key (modifier, space,
+// punctuation) that fills the board out to a clean rectangle. Every row is
+// exactly 15u wide, so the silhouette is rectangular even though the letters
+// keep their classic stagger (which comes from the edge-key widths, not row
+// offsets). Toggle off instantly with the QWERTY preset / `?layout=qwerty`.
+const m = (id: string, label: string, w = 1): KeyDef => ({ id, label, w, typeable: false });
+const d = (chars: string): KeyDef[] =>
+  chars.split('').map((c) => ({ id: c, label: c, w: 1, typeable: true }));
+
+export const FULL_ROWS: Cell[][] = [
+  // ` 1 2 3 4 5 6 7 8 9 0 - = [del]
+  [m('backtick', '`'), ...d('1234567890'), m('minus', '-'), m('equals', '='), m('backspace', 'del', 2)],
+  // tab q w e r t y u i o p [ ] \
+  [m('tab', 'tab', 1.5), ...d('qwertyuiop'), m('lbracket', '['), m('rbracket', ']'), m('backslash', '\\', 1.5)],
+  // caps a s d f g h j k l ; ' return
+  [m('caps', 'caps', 1.75), ...d('asdfghjkl'), m('semicolon', ';'), m('quote', "'"), m('enter', 'return', 2.25)],
+  // shift z x c v b n m , . / shift
+  [m('lshift', 'shift', 2.25), ...d('zxcvbnm'), m('comma', ','), m('period', '.'), m('slash', '/'), m('rshift', 'shift', 2.75)],
+  // ctrl opt cmd [space] cmd opt ctrl
+  [m('lctrl', 'ctrl', 1.25), m('lopt', 'opt', 1.25), m('lcmd', 'cmd', 1.25), m('space', '', 7.5), m('rcmd', 'cmd', 1.25), m('ropt', 'opt', 1.25), m('rctrl', 'ctrl', 1.25)],
+];
+
+export const LAYOUT_PRESETS: Record<string, Cell[][]> = {
   qwerty: QWERTY_ROWS,
   azerty: AZERTY_ROWS,
   dvorak: DVORAK_ROWS,
   numpad: NUMPAD_ROWS,
+  full: FULL_ROWS,
+};
+
+/**
+ * Extra config for presets that need more than swapped rows. The 'full' board is
+ * flush (no row stagger) and wider/deeper, so it re-centres via origin AND zooms
+ * the orthographic camera out so the larger footprint fits on every viewport.
+ * Derivation: board = 15u → 15*keySize(10) + 14*keyGap(2) = 178 wide; centre on
+ * x≈9 (the QWERTY centre) → originX = 9 - 178/2 = -80. originZ nudges the 5 rows
+ * back so they sit in frame. Frustum is bumped ~1.5x (178u vs QWERTY's ~118u) so
+ * portrait/mobile views don't clip the right column.
+ */
+export const LAYOUT_OVERRIDES: Record<string, DeepPartial<OpenKeysConfig>> = {
+  full: {
+    layout: { rowStagger: 0, originX: -80, originZ: -26 },
+    camera: { frustum: { mobile: 70, desktop: 120 } },
+  },
 };
 
 const LIGHT_THEME: ThemeColors = {
@@ -397,7 +464,7 @@ function deepMerge<T>(base: T, source: any): T {
  * Parse a whitelisted, type-coerced subset of config from URL query params.
  * Only safe, primitive keys are accepted here — never arbitrary object injection.
  *
- *   ?text= , ?layout=qwerty|azerty|dvorak|numpad , ?theme=light|dark|<preset>
+ *   ?text= , ?layout=qwerty|azerty|dvorak|numpad|full , ?theme=light|dark|<preset>
  *   ?data=frequency|static , ?font=<name> , ?intro=0|1 , ?poster=0|1 , ?panel=0|1
  */
 export function parseUrlParams(params: URLSearchParams): DeepPartial<OpenKeysConfig> {
@@ -408,7 +475,13 @@ export function parseUrlParams(params: URLSearchParams): DeepPartial<OpenKeysCon
 
   const layout = params.get('layout');
   if (layout && LAYOUT_PRESETS[layout]) {
-    out.layout = { rows: LAYOUT_PRESETS[layout], preset: layout as LayoutConfig['preset'] };
+    const override = LAYOUT_OVERRIDES[layout] || {};
+    if (override.camera) out.camera = override.camera;
+    out.layout = {
+      ...(override.layout || {}),
+      rows: LAYOUT_PRESETS[layout],
+      preset: layout as LayoutConfig['preset'],
+    };
   }
 
   const theme = params.get('theme');
