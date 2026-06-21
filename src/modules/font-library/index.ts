@@ -32,10 +32,9 @@ export const fontLibrary: OpenKeysModule = ({ engine, host, signal }) => {
   const q = <T extends HTMLElement = HTMLElement>(id: string) => host.querySelector<T>(`#${id}`);
 
   const fontControls = q('fontControls');
-  if (!engine.config.features.fontDrawer) {
-    fontControls?.classList.add('hidden');
-    return () => {};
-  }
+  // The quick-cycle control is always present. The full catalog drawer is opt-in
+  // (engine.config.features.fontDrawer) and can be toggled live from settings;
+  // reflectDrawerAffordance() keeps the trigger's affordance in sync.
 
   // --- Element references ---
   const fontName = q('fontName');
@@ -246,6 +245,17 @@ export const fontLibrary: OpenKeysModule = ({ engine, host, signal }) => {
     showToast(`Previewing ${font.family}. Pin it to save.`, false);
   };
 
+  // Reflect whether the catalog drawer is enabled onto the trigger: show the ▾
+  // caret + dialog semantics only when a tap opens the drawer (otherwise it cycles).
+  const reflectDrawerAffordance = () => {
+    const hasDrawer = engine.config.features.fontDrawer;
+    fontControls?.classList.toggle('font-has-drawer', hasDrawer);
+    if (fontLibraryTrigger) {
+      fontLibraryTrigger.setAttribute('aria-haspopup', hasDrawer ? 'dialog' : 'false');
+      fontLibraryTrigger.title = hasDrawer ? 'Browse fonts' : 'Change font';
+    }
+  };
+
   // --- Drawer open/close ---
   const openFontDrawer = () => {
     if (!fontDrawer) return;
@@ -254,7 +264,11 @@ export const fontLibrary: OpenKeysModule = ({ engine, host, signal }) => {
     fontLibraryTrigger?.setAttribute('aria-expanded', 'true');
     fontDrawer.setAttribute('aria-hidden', 'false');
     loadGoogleFontsCatalog();
-    setTimeout(() => fontSearchInput?.focus(), 150);
+    // Don't auto-raise the soft keyboard on phones — it would immediately eat half the
+    // viewport and hide the list. Desktop keeps the type-to-search convenience.
+    if (!window.matchMedia('(max-width: 480px)').matches) {
+      setTimeout(() => fontSearchInput?.focus(), 150);
+    }
   };
 
   const closeFontDrawer = () => {
@@ -594,7 +608,17 @@ export const fontLibrary: OpenKeysModule = ({ engine, host, signal }) => {
   // --- Wire controls ---
   fontPrev?.addEventListener('click', (e) => { e.stopPropagation(); shiftFont(-1); }, { signal });
   fontNext?.addEventListener('click', (e) => { e.stopPropagation(); shiftFont(1); }, { signal });
-  fontLibraryTrigger?.addEventListener('click', (e) => { e.preventDefault(); openFontDrawer(); }, { signal });
+  // The name/icon either opens the catalog drawer (when enabled) or — by default —
+  // just cycles to the next pinned font (works as the sole control on mobile).
+  fontLibraryTrigger?.addEventListener(
+    'click',
+    (e) => {
+      e.preventDefault();
+      if (engine.config.features.fontDrawer) openFontDrawer();
+      else shiftFont(1);
+    },
+    { signal }
+  );
 
   fontDrawerBackdrop?.addEventListener('click', closeFontDrawer, { signal });
   fontDrawerClose?.addEventListener('click', closeFontDrawer, { signal });
@@ -651,7 +675,11 @@ export const fontLibrary: OpenKeysModule = ({ engine, host, signal }) => {
   showCondensedToggle?.addEventListener('change', (e) => { showCondensed = (e.target as HTMLInputElement).checked; renderFontResults(filteredFonts); }, { signal });
   showExtendedToggle?.addEventListener('change', (e) => { showExtended = (e.target as HTMLInputElement).checked; renderFontResults(filteredFonts); }, { signal });
 
+  // Keep the trigger affordance in sync when the drawer is toggled from settings.
+  const offConfig = engine.on('config', reflectDrawerAffordance);
+
   // --- Boot: load favorites + apply the active font ---
+  reflectDrawerAffordance();
   (async () => {
     const stored = getStoredFavoriteFonts();
     favoriteFonts = stored.length ? stored.slice(0, MAX_FAVORITES) : getDefaultFavoriteFonts();
@@ -662,6 +690,7 @@ export const fontLibrary: OpenKeysModule = ({ engine, host, signal }) => {
   })();
 
   return () => {
+    offConfig();
     if (fontSearchTimeout) window.clearTimeout(fontSearchTimeout);
     weightScrollObserver?.disconnect();
     weightScrollObserver = null;

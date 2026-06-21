@@ -27,11 +27,14 @@ import { themeToggle } from '../modules/theme-toggle';
 import { poster } from '../modules/poster';
 import { settingsPanel } from '../modules/settings-panel';
 import { fontLibrary } from '../modules/font-library';
+import { sound } from '../modules/sound';
+import { samplePhrase } from '../modules/sample-phrase';
 
 /**
  * The built-in feature modules, keyed by the name used in `<open-keys modules="…">`.
  * Most expect specific DOM (text field, drawer, modal); compose them only when the
  * host element provides matching markup. The bare engine works with none of them.
+ * `sound` needs no DOM — it works with any composition.
  */
 export const MODULE_REGISTRY: Record<string, OpenKeysModule> = {
   'text-input': textInput,
@@ -41,9 +44,11 @@ export const MODULE_REGISTRY: Record<string, OpenKeysModule> = {
   'font-library': fontLibrary,
   poster,
   'settings-panel': settingsPanel,
+  sound,
+  'sample-phrase': samplePhrase,
 };
 
-export { textInput, characterBar, typingSpeed, themeToggle, poster, settingsPanel, fontLibrary };
+export { textInput, characterBar, typingSpeed, themeToggle, poster, settingsPanel, fontLibrary, sound, samplePhrase };
 
 export type OpenKeysInstance = OpenKeysEngine & { exportPoster(): string };
 

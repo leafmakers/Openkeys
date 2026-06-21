@@ -1,0 +1,11 @@
+/* The navbar gumball: a small canvas that inherits the title's currentColor so the
+   dots stay theme-aware. Slightly larger than the old flat logo so the 6×6-per-face
+   cube reads as 3D. */
+.keycastle-cube {
+  display: block;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  color: currentColor;
+  touch-action: none; /* pointer interactions shouldn't scroll the page */
+}

@@ -2,8 +2,8 @@
 <html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=1.0" />
-    <title>OpenKeys</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>keycastle</title>
     <link rel="stylesheet" href="./src/styles/tokens.css">
     <link rel="stylesheet" href="./src/styles/base.css">
   </head>
@@ -11,22 +11,59 @@
     <!-- Navigation Bar -->
     <nav id="navbar">
       <div class="navbar-content">
-        <h1 class="navbar-title">OpenKeys</h1>
+        <h1 class="navbar-title" aria-label="keycastle">
+          <span class="keycastle-hover-state">
+            <canvas
+              class="keycastle-cube"
+              id="keycastleCube"
+              data-ok-role="view-cube"
+              role="img"
+              aria-label="View cube — click a face to snap the keyboard view"
+            ></canvas>
+            <span class="keycastle-wordmark" aria-hidden="true">keycastle</span>
+          </span>
+        </h1>
         <div id="navbarActions">
-          <button id="themeToggle" aria-label="Toggle dark mode" title="Toggle dark mode">◑</button>
-          <button id="settingsToggle" aria-label="Open settings" title="Settings">⚙</button>
+          <div id="fontControls">
+            <button id="fontPrev" aria-label="Previous font">←</button>
+            <button id="fontLibraryTrigger" class="font-name-trigger" aria-haspopup="dialog" aria-expanded="false" title="Change font">
+              <span class="font-icon" aria-hidden="true">Aa</span>
+              <span id="fontName">System</span>
+              <span class="font-name-caret">▾</span>
+            </button>
+            <button id="fontNext" aria-label="Next font">→</button>
+          </div>
+          <button id="samplePhrase" aria-label="Type a sample phrase" title="Type a sample phrase">
+            <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h16M4 12h16M4 17.5h10"/></svg>
+          </button>
+          <button id="previewAndPrint" aria-label="Download poster" title="Download poster">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11M7.5 9.5L12 14l4.5-4.5M5 20h14"/></svg>
+          </button>
+          <button id="autoRotateToggle" class="nav-toggle" aria-label="Toggle auto-rotate" aria-pressed="false" title="Auto-rotate">
+            <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 12a8.5 8.5 0 1 1-2.49-6.01"/><path d="M20.5 4v4h-4"/></svg>
+          </button>
+          <button id="turntableToggle" class="nav-toggle" aria-label="Toggle turntable (drag to rotate)" aria-pressed="false" title="Turntable (drag to rotate)">
+            <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.3" style="fill:currentColor;stroke:none"/><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-28 12 12)"/></svg>
+          </button>
+          <button id="projectionToggle" class="nav-toggle" aria-label="Toggle perspective / parallel projection" aria-pressed="false" title="Projection">
+            <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l8.2 4.6v9.2L12 21.2 3.8 16.6V7.4z"/><path d="M3.9 7.5l8.1 4.6 8.1-4.6M12 12.1v9"/></svg>
+          </button>
+          <button id="themeToggle" aria-label="Toggle dark mode" title="Toggle dark mode">
+            <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path style="fill:currentColor;stroke:none" d="M12 3.5a8.5 8.5 0 0 1 0 17z"/></svg>
+          </button>
+          <button id="settingsToggle" aria-label="Open settings" title="Settings">
+            <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 12h2M10 12h10M4 17h8M16 17h4"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="14" cy="17" r="2"/></svg>
+          </button>
         </div>
       </div>
     </nav>
 
     <!-- Text Display + frequency dock (top card on desktop, bottom dock on mobile) -->
     <div id="textDisplayWrapper">
-      <div class="text-display-clear">
-        <button id="clearButton">Clear ×</button>
-      </div>
-      <div id="textDisplay" contenteditable="true" role="textbox" aria-label="Type a phrase">
-        type something…
-      </div>
+      <div id="textDisplay" contenteditable="true" role="textbox" aria-label="Type a phrase"></div>
+      <button id="clearButton" type="button" aria-label="Clear text" title="Clear text" style="display: none;">
+        <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M22 3H7c-.69 0-1.23.35-1.59.88L0 12l5.41 8.11c.36.53.9.89 1.59.89h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-3 12.59L17.59 17 14 13.41 10.41 17 9 15.59 12.59 12 9 8.41 10.41 7 14 10.59 17.59 7 19 8.41 15.41 12 19 15.59z"/></svg>
+      </button>
       <div class="text-display-meta">
         <div id="typingSpeed">0 WPM</div>
         <div id="characterCount">0/90 characters</div>
@@ -34,18 +71,6 @@
       <div id="characterBar">
         <div id="characterBarSegments"></div>
       </div>
-    </div>
-
-    <div id="controls">
-      <div id="fontControls">
-        <button id="fontPrev" aria-label="Previous font">←</button>
-        <button id="fontLibraryTrigger" class="font-name-trigger" aria-haspopup="dialog" aria-expanded="false">
-          <span id="fontName">System</span>
-          <span class="font-name-caret">▾</span>
-        </button>
-        <button id="fontNext" aria-label="Next font">→</button>
-      </div>
-      <button id="previewAndPrint">Preview Poster</button>
     </div>
 
     <!-- Font Drawer -->
@@ -193,14 +218,22 @@
     </div>
 
 
-    <div id="previewModal">
+    <div id="previewModal" role="dialog" aria-modal="true" aria-label="Poster preview">
       <div id="previewContent">
+        <div id="previewHeader">
+          <span class="preview-title">Poster</span>
+          <button id="closePreview" class="preview-close" type="button" aria-label="Close preview">
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
         <div id="previewImageContainer">
-          <img id="previewImage" alt="Preview" />
+          <img id="previewImage" alt="Poster preview" />
         </div>
         <div id="previewControls">
-          <button id="printFromPreview">Print Poster</button>
-          <button id="closePreview">Close</button>
+          <button id="printFromPreview" type="button">
+            <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11M7.5 9.5L12 14l4.5-4.5M5 20h14"/></svg>
+            <span>Download poster</span>
+          </button>
         </div>
       </div>
     </div>

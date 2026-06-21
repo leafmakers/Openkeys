@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@types/three": "^0.162.0",
+    "postprocessing": "^6.37.4",
     "three": "^0.162.0"
   },
   "peerDependencies": {

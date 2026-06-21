@@ -1,23 +1,11 @@
 /* font-library — font controls, pinned chips, slide-in drawer, font cards,
    weight previews, and the A-Z rail. */
 
-/* Font controls — a self-contained pill in the bottom controls row. */
+/* Font control — just the bare "Aa" glyph in the navbar (styled as an icon
+   button by base.css). No pill chrome; the cycle arrows/name/caret are hidden. */
 #fontControls {
   display: flex;
   align-items: center;
-  gap: 4px;
-  justify-content: space-between;
-  padding: 3px;
-  border-radius: 999px;
-  border: 1px solid var(--input-border);
-  background: var(--bg-color);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-[data-theme="dark"] #fontControls {
-  background: rgba(37, 37, 37, 0.92);
 }
 
 #fontPrev,
@@ -76,10 +64,26 @@
   text-overflow: ellipsis;
 }
 
+/* Compact "Aa" glyph — the sole font affordance on mobile (desktop shows the name). */
+.font-icon {
+  display: none;
+  font-family: 'Inter', 'Inter var', system-ui, -apple-system, sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-color);
+}
+
+/* The ▾ caret only makes sense when a tap opens the drawer; cycle-mode hides it. */
 .font-name-caret {
+  display: none;
   font-size: 11px;
   opacity: 0.7;
   transform: translateY(-1px);
+}
+
+#fontControls.font-has-drawer .font-name-caret {
+  display: inline-block;
 }
 
 body.font-drawer-open {

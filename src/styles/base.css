@@ -8,17 +8,16 @@
    soft keyboard) on mobile. The 3D canvas stays full-viewport behind it all. */
 
 /* ---------- Navbar ---------- */
+/* Transparent — no bar fill, no divider; it floats over the scene so the canvas
+   reads edge to edge. The controls (font picker + poster + theme + settings) live
+   here as a single top-right cluster. */
 #navbar {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   height: var(--nav-h);
-  background: var(--bg-color);
-  border-bottom: 1px solid var(--input-border);
   z-index: 1500;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 
 .navbar-content {
@@ -28,44 +27,172 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
 }
 
 .navbar-title {
-  font-family: 'Inter', 'Inter var', system-ui, -apple-system, sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.3px;
   color: var(--text-color);
   margin: 0;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  position: relative;
 }
 
-[data-theme="dark"] #navbar {
-  background: rgba(37, 37, 37, 0.95);
+.keycastle-hover-state {
+  position: absolute;
+  top: 50%;
+  left: -8px;
+  display: flex;
+  align-items: center;
+  transform: translateY(-50%);
+  padding: 8px;
+  border-radius: 10px;
+  background: transparent;
+  transition: background 150ms ease;
+}
+
+.keycastle-icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: currentColor;
+}
+
+.keycastle-dot {
+  fill: currentColor;
+  opacity: 0.72;
+}
+
+.navbar-title:hover .keycastle-hover-state {
+  background: rgba(60, 65, 66, 0.08);
+}
+
+[data-theme="dark"] .navbar-title:hover .keycastle-hover-state {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.navbar-title:hover .keycastle-dot {
+  animation: keycastle-dot-blink var(--blink-speed) steps(1, end) var(--blink-delay) infinite;
+}
+
+@keyframes keycastle-dot-blink {
+  0%, 54%, 72%, 100% { opacity: 0.72; }
+  58% { opacity: 0.22; }
+  62% { opacity: 1; }
+  67% { opacity: 0.5; }
+}
+
+.keycastle-wordmark {
+  max-width: 0;
+  margin-left: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(-4px);
+  pointer-events: none;
+  transition: max-width 180ms ease, margin-left 180ms ease, opacity 160ms ease, transform 160ms ease;
+}
+
+.navbar-title:hover .keycastle-wordmark {
+  max-width: 120px;
+  margin-left: 8px;
+  opacity: 1;
+  transform: translateX(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navbar-title:hover .keycastle-dot {
+    animation: none;
+  }
+
+  .keycastle-wordmark {
+    transition: none;
+  }
 }
 
 #navbarActions {
   display: flex;
+  align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
-#navbarActions button {
+/* Navbar actions are bare icons — no button chrome, just a hover highlight.
+   Covers the font "Aa", poster (download), theme and settings affordances. */
+#navbarActions > button,
+#navbarActions .font-name-trigger {
+  flex: none;
   width: 36px;
   height: 36px;
+  padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 18px;
   line-height: 1;
+  border: none;
   border-radius: 999px;
   cursor: pointer;
-  background: var(--button-default-bg);
-  color: var(--button-default-color);
-  border: 1px solid var(--button-default-border);
-  transition: background 0.15s ease, border-color 0.15s ease;
+  background: transparent;
+  color: var(--text-color);
+  opacity: 0.6;
+  transition: opacity 0.15s ease, background 0.15s ease;
 }
 
-#navbarActions button:hover {
-  border-color: var(--text-color);
+#navbarActions > button:hover,
+#navbarActions .font-name-trigger:hover {
+  opacity: 1;
+  background: rgba(60, 65, 66, 0.08);
+  transform: none; /* neutralize the global button:hover scale — hover is just the highlight */
+}
+
+[data-theme="dark"] #navbarActions > button:hover,
+[data-theme="dark"] #navbarActions .font-name-trigger:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+#navbarActions > button:focus-visible,
+#navbarActions .font-name-trigger:focus-visible {
+  outline: none;
+  opacity: 1;
+  background: rgba(60, 65, 66, 0.08);
+}
+
+[data-theme="dark"] #navbarActions > button:focus-visible,
+[data-theme="dark"] #navbarActions .font-name-trigger:focus-visible {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Font control collapses to just the "Aa" glyph everywhere (desktop + mobile):
+   the cycle arrows, font name and caret are dropped; "Aa" opens the font drawer. */
+#navbarActions #fontPrev,
+#navbarActions #fontNext,
+#navbarActions #fontName,
+#navbarActions .font-name-caret {
+  display: none;
+}
+
+#navbarActions .font-icon {
+  display: inline-flex;
+}
+
+/* Poster trigger renders as a camera glyph. */
+/* One rule for every navbar icon glyph (sample-phrase, poster, theme, settings)
+   so they're identical in size and stroke weight. Icons that need a fill set it
+   inline per-path (e.g. the theme contrast half). */
+#navbarActions > button svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* ---------- Text + frequency dock ---------- */
@@ -83,35 +210,17 @@
   gap: 12px;
 }
 
-.text-display-clear {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-/* ---------- Bottom controls (font picker + Preview Poster) ---------- */
-/* A centered row of two self-contained pills — no outer panel, so the font pill
-   and the Preview button each read as their own control rather than debris. */
-#controls {
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: clamp(16px, 4vh, 28px);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: min(calc(100% - 2 * var(--gutter)), 460px);
-}
-
-#controls #fontControls {
-  flex: 1 1 auto;
+/* ---------- Font picker pill (in the navbar) ---------- */
+#navbarActions #fontControls {
+  box-sizing: border-box;
+  flex: 0 1 auto;
   min-width: 0;
+  height: 36px;
 }
 
-#controls #previewAndPrint {
-  flex: 0 0 auto;
-  width: auto;
+/* Truncate long font names so the cluster fits, including on mobile. */
+#navbarActions #fontName {
+  max-width: clamp(48px, 13vw, 150px);
 }
 
 /* ---------- Buttons ---------- */
@@ -178,74 +287,83 @@ button.primary:hover,
 
 /* ---------- Responsive: one mobile system (≤480px) ---------- */
 @media (max-width: 480px) {
+  /* Single source: the bar is 50px on phones; expose it via the token so the dock
+     (top: calc(var(--nav-h) …)) tracks the real height, not the 60px default.
+     Keep in sync with config.scene.mobileBreakpoint (480). */
+  :root {
+    --nav-h: 50px;
+  }
+
   #navbar {
-    height: 50px;
+    height: calc(var(--nav-h) + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
   }
 
   .navbar-title {
     font-size: 18px;
   }
 
-  /* Controls become a compact row pinned just under the navbar, out of the way
-     of the bottom dock and the soft keyboard. */
-  #controls {
-    top: calc(50px + 8px);
+  /* Clear the notch / rounded corners on the sides. */
+  .navbar-content {
+    gap: 8px;
+    padding-left: max(var(--gutter), env(safe-area-inset-left, 0px));
+    padding-right: max(var(--gutter), env(safe-area-inset-right, 0px));
+  }
+
+  /* Reduce the bar to the essentials — logo · Aa · download · settings. The camera
+     toggles (auto-rotate / turntable / projection) and theme already live in the
+     Settings panel; the sample-phrase button is a desktop-only discovery aid. */
+  #navbarActions #samplePhrase,
+  #navbarActions #autoRotateToggle,
+  #navbarActions #turntableToggle,
+  #navbarActions #projectionToggle,
+  #navbarActions #themeToggle {
+    display: none;
+  }
+
+  #navbarActions {
+    gap: 4px;
+  }
+
+  /* 44px minimum touch target (HIG / WCAG 2.5.5); the glyph stays 19px. With only
+     three actions left, three 44px circles + the Aa pill fit a 360px row. */
+  #navbarActions > button,
+  #navbarActions .font-name-trigger {
+    width: 44px;
+    height: 44px;
+    font-size: 16px;
+  }
+
+  #navbarActions #fontControls {
+    height: 44px;
+  }
+
+  /* The dock sits just under the (variable-height) navbar; the soft keyboard opens
+     from the bottom, so a top-anchored dock never collides with it. */
+  #textDisplayWrapper {
+    top: calc(var(--nav-h) + env(safe-area-inset-top, 0px) + 10px);
     bottom: auto;
     width: calc(100% - 16px);
     gap: 8px;
   }
 
-  /* The dock flips to the bottom and lifts above the soft keyboard (--kb-inset,
-     set by the text-input module). Children stay in flow — no more colliding
-     fixed overlays. The clear row is hidden to keep the dock compact. */
-  #textDisplayWrapper {
-    top: auto;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 12px + var(--kb-inset));
-    width: calc(100% - 16px);
-    gap: 8px;
-    /* The frequency-bar labels overflow ~38px below the bar; reserve room so they
-       aren't clipped at the screen edge (the bar is the dock's last child). */
-    padding-bottom: 34px;
-    transition: bottom 0.2s ease;
-  }
-
-  .text-display-clear {
-    display: none;
-  }
-
   #textDisplay {
     min-height: 0;
-    padding: 12px 16px;
-    font-size: 16px; /* ≥16px avoids the iOS focus-zoom */
+    /* Reserve the right gutter so the 44px clear button never overlaps the phrase. */
+    padding: 12px 48px 12px 16px;
+    font-size: 16px; /* ≥16px avoids the iOS focus-zoom (autofit overrides as text grows) */
   }
 
-  /* Poster modal — stack the controls, keep the image readable. */
-  #previewImage {
-    max-width: 100%;
-    height: auto;
-    border-radius: 4px;
-    margin-bottom: 80px;
-  }
-
-  #previewControls {
-    flex-direction: column;
-  }
-
-  #closePreview {
-    order: 2;
-  }
-
-  #printFromPreview {
-    order: 1;
-  }
-
-  /* Font drawer — full-bleed, single-column stack on phones (the desktop 2-col
-     grid overflows a narrow screen and pushes the font list off-canvas). */
+  /* Font drawer — full-bleed single column, bounded to the *dynamic* viewport so its
+     bottom isn't trapped under the mobile browser chrome; safe-area padding clears the
+     notch + home indicator. width:100% (not 100vw) respects the side insets. */
   #fontDrawer .font-drawer-panel {
     box-sizing: border-box;
-    width: 100vw;
-    max-width: 100vw;
-    padding: 20px 16px;
+    width: 100%;
+    max-width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    padding: calc(20px + env(safe-area-inset-top, 0px)) 16px calc(20px + env(safe-area-inset-bottom, 0px));
     border-left: none;
     border-radius: 0;
     gap: 16px;
@@ -276,8 +394,8 @@ button.primary:hover,
   }
 
   .font-drawer-close {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     font-size: 20px;
   }
 
@@ -310,8 +428,8 @@ button.primary:hover,
   }
 
   .font-search-wrapper input {
-    padding: 9px 32px 9px 12px;
-    font-size: 14px;
+    padding: 11px 36px 11px 12px;
+    font-size: 16px; /* ≥16px avoids iOS focus-zoom */
   }
 
   .search-clear-btn {
@@ -323,13 +441,13 @@ button.primary:hover,
   }
 
   .filter-group select {
-    padding: 7px 28px 7px 10px;
-    font-size: 12px;
+    padding: 9px 28px 9px 10px;
+    font-size: 16px; /* ≥16px avoids iOS focus-zoom */
   }
 
   .preview-text-control input {
-    padding: 7px 10px;
-    font-size: 12px;
+    padding: 9px 10px;
+    font-size: 16px; /* ≥16px avoids iOS focus-zoom */
   }
 
   .preview-options {
@@ -380,16 +498,10 @@ button.primary:hover,
     border-radius: 8px;
   }
 
+  /* Hide the A–Z quick-jump rail on phones: its 18px-tall, hover-driven buttons are
+     un-tappable, and search + sticky letter headers cover the same need. */
   .az-scroll-guide {
-    width: 32px;
-    padding: 8px 4px;
-    gap: 1px;
-  }
-
-  .az-scroll-guide button {
-    width: 20px;
-    height: 18px;
-    font-size: 9px;
+    display: none;
   }
 
   .font-letter-section {

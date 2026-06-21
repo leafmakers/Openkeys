@@ -1,0 +1,22 @@
+/* sample-phrase — the navbar "fox" button. Sizing/shape come from the shared
+   navbar icon-button style in base.css (#navbarActions > button); here we only
+   size the glyph and add a gentle "typing" pulse. */
+#samplePhrase svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#samplePhrase.is-typing {
+  color: var(--accent-color);
+  animation: sample-phrase-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes sample-phrase-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}

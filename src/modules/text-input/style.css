@@ -4,42 +4,41 @@
 
 #textDisplay {
   position: relative;
-  background: var(--bg-color);
-  padding: 16px 20px;
-  border-radius: 12px;
+  /* No card — no background, border, radius, or focus ring. The field reads as
+     plain text on the page; the cursor is the only chrome. */
+  background: transparent;
+  /* Tight vertical padding so the phrase scales WITHIN a fixed band (height below)
+     without nudging the rows beneath it. Left edge is flush with the WPM/counter
+     row; the right reserves room for the clear button, which scales with the text. */
+  padding: 2px calc(var(--ok-type-size, 28px) * 0.72 + 10px) 2px 0;
+  border: none;
   font-family: system-ui, -apple-system, sans-serif;
-  font-size: clamp(18px, 4.5vw, 21.6px);
-  border: 1px solid var(--input-border);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+  /* Auto-fit (text-input module) sets font-size inline; this is the empty/initial
+     max. The phrase shrinks to fit the FIXED height, so the rows below never move. */
+  font-size: 52px;
   text-align: left;
   -webkit-user-select: text;
   user-select: text;
   cursor: text;
   color: var(--text-color);
-  min-height: 60px;
+  /* Fixed reserved typing band — the auto-fit scales the text inside this; it never
+     grows the box, so WPM/character-count/bar stay put. */
+  height: clamp(74px, 15vh, 96px);
   overflow: hidden;
-  line-height: 1.5;
+  overflow-wrap: anywhere;
+  line-height: 1.18;
   direction: ltr;
   unicode-bidi: normal;
-  caret-color: var(--text-color);
+  /* Hide the thin native caret — we draw our own consistent block caret (::after)
+     so the cursor reads identically whether empty or mid-phrase. */
+  caret-color: transparent;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-/* Tapping the field (or the canvas, on mobile) gives immediate feedback. */
+/* No focus ring — keep it chrome-free even when active. */
 #textDisplay:focus {
   outline: none;
-  border-color: var(--accent-color);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(60, 65, 66, 0.1);
-}
-
-[data-theme="dark"] #textDisplay {
-  background: rgba(37, 37, 37, 0.55);
-}
-
-[data-theme="dark"] #textDisplay:focus {
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3), 0 0 0 3px rgba(255, 255, 255, 0.12);
 }
 
 .text-display-meta {
@@ -49,24 +48,43 @@
   margin: 0;
 }
 
-/* Blinking caret shown only in the empty/placeholder state. */
-#textDisplay::after {
-  content: '';
+/* One cursor, used everywhere: a bold, tall, rounded block caret drawn as ::after at
+   the text insertion point (end of the phrase). Dimensions are in `em`, so its
+   proportions — thickness, roundness, height — stay identical as the auto-fit scales
+   the font. Because the empty field + first words fill the band's full height
+   (oneLineFont), the caret is large AND tall there (≈ the box height), then scales
+   down with the phrase — never collapsing into the thin native caret. Shown while
+   focused (typing) and in the empty invite state; hidden on an unfocused field that
+   already has text. */
+/* Single-phrase field: never break lines (Enter is prevented in JS). Hiding the
+   <br> that browsers auto-insert into an empty contenteditable keeps the block
+   caret (::after) on the first line instead of being pushed to a clipped 2nd line. */
+#textDisplay br {
   display: none;
 }
 
-#textDisplay[data-placeholder="true"]::after {
-  content: '|';
-  display: inline;
-  animation: blink 1.2s infinite;
-  color: var(--text-color);
-  font-weight: normal;
-  margin-left: 1px;
+#textDisplay::after {
+  content: '';
+  display: none;
+  /* Thickness + corner rounding are live-configurable (settings → Cursor); the
+     text-input module sets these vars from config.cursor. Fallbacks = the defaults. */
+  width: var(--ok-caret-thickness, 0.105em); /* slim — scales with font-size */
+  height: 1.04em;         /* tall: spans the full line (cap height + descender) */
+  background: var(--text-color);
+  border-radius: var(--ok-caret-radius, 0.018em);
+  vertical-align: -0.2em;
+  margin-left: 0.04em;
+  animation: ok-caret-blink 1.05s steps(1, end) infinite;
 }
 
-@keyframes blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
+#textDisplay:focus::after,
+#textDisplay[data-placeholder="true"]::after {
+  display: inline-block;
+}
+
+@keyframes ok-caret-blink {
+  0%, 55% { opacity: 1; }
+  55.01%, 100% { opacity: 0; }
 }
 
 #characterCount {
@@ -76,27 +94,74 @@
   text-align: right;
 }
 
+/* The delete/backspace key glyph IS the button — no circle behind it. A solid
+   fill with the × cut out, pinned in the card's top-right corner. Shown by the
+   module only when there's text (#textDisplayWrapper is the positioning context). */
+/* The delete glyph sits WITH the text: sized to the current text and vertically
+   centered on the first typed line (not floating in a corner). --ok-type-size is
+   the live auto-fit font size, set by the text-input module. */
 #clearButton {
-  position: relative;
-  padding: 10px 18px;
-  border-radius: 8px;
-  background: transparent;
-  border: 1px solid var(--input-border);
+  position: absolute;
+  --sz: clamp(20px, calc(var(--ok-type-size, 28px) * 0.6), 40px);
+  width: var(--sz);
+  height: var(--sz);
+  right: 0;
+  /* centre of the first line: box padding-top (2px) + half a line-height */
+  top: calc(2px + var(--ok-type-size, 28px) * 1.18 / 2);
+  transform: translateY(-50%);
+  padding: 0;
+  background: none;
+  border: none;
   color: var(--text-color);
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  display: flex;
+  line-height: 1;
+  display: none; /* toggled to flex by the text-input module when there is text */
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  opacity: 0.8;
-  transition: all 0.2s ease;
-  white-space: nowrap;
+  opacity: 0.45;
+  z-index: 2;
+  transition: opacity 0.15s ease, color 0.15s ease, transform 0.1s ease;
 }
 
+#clearButton svg {
+  width: 72%;
+  height: 72%;
+  display: block;
+  fill: currentColor; /* solid glyph; the × reads as a cut-out (fill-rule: evenodd) */
+}
+
+/* Red hover — signals destructive "delete", scoped to the glyph only. */
 #clearButton:hover {
   opacity: 1;
-  background: var(--button-hover-bg);
-  transform: translateY(-1px);
+  color: #ef4444;
+}
+
+#clearButton:active {
+  transform: translateY(-50%) scale(0.92);
+}
+
+/* ---------- Mobile: thumb-friendly clear button + safe meta row ---------- */
+@media (max-width: 480px) {
+  /* A 44px hit area (HIG / WCAG) while the × glyph itself stays small. base.css
+     reserves a matching right gutter on #textDisplay so it never covers the phrase. */
+  #clearButton {
+    --sz: 44px;
+  }
+
+  #clearButton svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* Keep WPM + character-count on one line at 360px. */
+  .text-display-meta {
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+
+  #typingSpeed,
+  #characterCount {
+    white-space: nowrap;
+    font-size: 12px;
+  }
 }
