@@ -1,6 +1,16 @@
 /**
+ * Pointer-move tolerance (px) that still counts as a tap rather than a drag/orbit.
+ * Touch needs a looser slop than a mouse because of finger jitter. Shared by every
+ * canvas tap handler (engine delete-key clear, text-input tap-to-type, view-cube face
+ * snap) so they agree on what a "tap" is instead of each guessing a magic number.
+ */
+export function tapSlop(pointerType: string): number {
+  return pointerType === 'touch' ? 12 : 4;
+}
+
+/**
  * A type-safe debounce function that limits the rate at which a function can fire.
- * 
+ *
  * @template T The type of the function parameters
  * @template R The return type of the function
  * @param {(...args: T[]) => R} func The function to debounce

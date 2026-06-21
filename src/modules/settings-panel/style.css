@@ -1,110 +1,446 @@
-/* settings-panel — the gear-button slide-over. */
+/* settings-panel — the gear-button slide-over.
+   Self-contained control system: every control is explicitly styled (and resets
+   the global `button` rules that would otherwise leak in — flex:1, pill radius),
+   so the panel reads as one coherent, crafted surface. Field labels use the same
+   uppercase-muted treatment as the font drawer for app-wide consistency. */
 
-/* Settings panel */
 .settings-panel {
+  --settings-track: rgba(60, 65, 66, 0.07);
+  --settings-divider: rgba(60, 65, 66, 0.1);
+
   position: fixed;
-  top: 72px;
-  right: 16px;
-  width: 280px;
-  max-width: calc(100vw - 32px);
+  top: 64px;
+  right: 12px;
+  width: 300px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 84px);
+  overflow-y: auto;
   background: var(--bg-color);
   color: var(--text-color);
   border: 1px solid var(--input-border);
-  border-radius: 14px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
-  padding: 16px;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 18px 48px rgba(0, 0, 0, 0.18);
+  padding: 16px 18px 18px;
   z-index: 1600;
-  display: none;
+  display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+
+  /* Anchored entrance from the gear button (top-right). */
+  transform-origin: top right;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-6px) scale(0.98);
+  transition: opacity 0.16s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 0s linear 0.18s;
 }
 
 .settings-panel.open {
-  display: flex;
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition: opacity 0.16s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+[data-theme="dark"] .settings-panel {
+  --settings-track: rgba(255, 255, 255, 0.07);
+  --settings-divider: rgba(255, 255, 255, 0.12);
+}
+
+/* ---------- Header ---------- */
 .settings-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-weight: 600;
   font-size: 15px;
+  letter-spacing: -0.2px;
+  padding-bottom: 14px;
+  margin-bottom: -4px;
+  border-bottom: 1px solid var(--settings-divider);
 }
 
 .settings-close {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
+  border-radius: 999px;
   background: transparent;
-  font-size: 20px;
+  color: var(--text-color);
+  font-size: 19px;
   line-height: 1;
+  opacity: 0.5;
   cursor: pointer;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.settings-close:hover {
+  opacity: 1;
+  background: var(--settings-track);
+}
+
+/* ---------- Fields + labels ---------- */
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Uppercase muted label, matching the font drawer's section labels. */
+.settings-field > span {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  opacity: 0.5;
   color: var(--text-color);
 }
 
-.settings-field,
-.settings-check {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 13px;
+/* ---------- Select ---------- */
+.settings-field select {
+  width: 100%;
+  padding: 10px 34px 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--input-border);
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%233c4142' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.settings-check {
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
+[data-theme="dark"] .settings-field select {
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.settings-field select:hover {
+  border-color: var(--accent-color);
+}
+
+.settings-field select:focus-visible {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 3px rgba(60, 65, 66, 0.12);
+}
+
+[data-theme="dark"] .settings-field select:focus-visible {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.14);
+}
+
+/* ---------- Range (structural-key opacity) ---------- */
+.settings-field[hidden] {
+  display: none;
+}
+
+.settings-range > span {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.settings-range > span em {
+  font-style: normal;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-range input[type="range"] {
+  width: 100%;
+  height: 6px;
+  margin: 4px 0;
+  accent-color: var(--button-primary-bg);
   cursor: pointer;
 }
 
-.settings-field > span {
-  opacity: 0.7;
+/* ---------- Section group headers ---------- */
+.settings-section {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  opacity: 0.45;
+  color: var(--text-color);
+  padding-top: 14px;
+  border-top: 1px solid var(--settings-divider);
 }
 
-.settings-field select {
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--input-border);
-  background: var(--input-bg);
-  color: var(--input-text);
-  font-size: 14px;
+.settings-section[hidden] {
+  display: none;
 }
 
+/* ---------- Theme: a real segmented control ---------- */
 .settings-segment {
   display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--settings-track);
   border: 1px solid var(--input-border);
-  border-radius: 8px;
-  overflow: hidden;
+  border-radius: 12px;
 }
 
 .settings-segment button {
   flex: 1;
-  padding: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 8px;
   border: none;
-  background: var(--button-default-bg);
-  color: var(--button-default-color);
-  cursor: pointer;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-color);
+  font-family: inherit;
   font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 0.15s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.settings-segment button svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.settings-segment button:hover {
+  opacity: 0.9;
 }
 
 .settings-segment button.active {
-  background: var(--button-primary-bg);
-  color: var(--button-primary-color);
+  opacity: 1;
+  background: var(--bg-color);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04), 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
+[data-theme="dark"] .settings-segment button.active {
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.settings-segment button:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+/* ---------- Toggles (intro / poster) ---------- */
+.settings-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-check {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 0;
+  font-size: 13.5px;
+  line-height: 1.3;
+  cursor: pointer;
+  user-select: none;
+}
+
+.settings-check + .settings-check {
+  border-top: 1px solid var(--settings-divider);
+}
+
+.settings-check > span:first-child {
+  color: var(--text-color);
+}
+
+/* Hide the native control but keep it focusable + functional. */
+.settings-check input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+}
+
+.settings-switch {
+  flex: none;
+  position: relative;
+  width: 40px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(120, 120, 120, 0.45);
+  transition: background 0.2s ease;
+}
+
+.settings-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.settings-check input:checked ~ .settings-switch {
+  background: var(--button-primary-bg);
+}
+
+.settings-check input:checked ~ .settings-switch::after {
+  transform: translateX(16px);
+}
+
+/* In dark mode the "on" track is white, so the knob flips dark to stay visible. */
+[data-theme="dark"] .settings-check input:checked ~ .settings-switch::after {
+  background: #252525;
+}
+
+.settings-check input:focus-visible ~ .settings-switch {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+/* ---------- Primary action ---------- */
 .settings-share {
-  padding: 10px;
-  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  flex: none;
+  padding: 11px 14px;
+  border-radius: 10px;
   border: 1px solid var(--button-primary-border);
   background: var(--button-primary-bg);
   color: var(--button-primary-color);
   cursor: pointer;
+  font-family: inherit;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
+  transition: filter 0.15s ease, transform 0.1s ease;
 }
 
+.settings-share svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.settings-share:hover {
+  filter: brightness(1.08);
+}
+
+.settings-share:active {
+  transform: scale(0.985);
+}
+
+.settings-share:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+/* ---------- Hint ---------- */
 .settings-hint {
-  margin: 0;
-  font-size: 11px;
-  opacity: 0.55;
-  line-height: 1.4;
+  margin: -6px 0 0;
+  font-size: 11.5px;
+  opacity: 0.5;
+  line-height: 1.45;
+}
+
+/* ---------- Mobile ---------- */
+/* The panel has grown tall, so on phones it spans nearly full width and scrolls.
+   Height is bounded by the *dynamic* viewport (dvh) — not 100vh — so the bottom
+   of the list (theme, camera/orbit, share) is never trapped behind the mobile
+   browser chrome; safe-area padding clears the home indicator. */
+@media (max-width: 480px) {
+  .settings-panel {
+    box-sizing: border-box; /* so max-height bounds the whole box (incl. padding) */
+    top: calc(56px + env(safe-area-inset-top, 0px)); /* clear the navbar + notch */
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: none;
+    gap: 15px;
+    padding: 14px 16px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    max-height: calc(100vh - 72px); /* fallback for browsers without dvh */
+    max-height: calc(100dvh - 72px - env(safe-area-inset-top, 0px));
+    overscroll-behavior: contain; /* don't scroll the page behind once bottomed out */
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Tighten the section rhythm a touch so more fits before scrolling. */
+  .settings-section {
+    padding-top: 12px;
+  }
+
+  /* ----- Touch targets: everything draggable/tappable grows thumb-friendly ----- */
+  /* Bigger close hit area, kept in the header row via negative margins. */
+  .settings-close {
+    width: 44px;
+    height: 44px;
+    margin: -8px -8px -8px 0;
+    font-size: 22px;
+  }
+
+  /* Taller drag strip for sliders; touch-action:none so a horizontal drag isn't
+     stolen by the panel's vertical scroll. */
+  .settings-range input[type="range"] {
+    height: 26px;
+    touch-action: none;
+  }
+
+  /* Larger pill switches. */
+  .settings-check {
+    min-height: 48px;
+    padding: 13px 0;
+  }
+
+  .settings-switch {
+    width: 48px;
+    height: 28px;
+  }
+
+  .settings-switch::after {
+    width: 24px;
+    height: 24px;
+  }
+
+  .settings-check input:checked ~ .settings-switch::after {
+    transform: translateX(20px);
+  }
+
+  /* 16px selects avoid the iOS focus-zoom; roomier tap padding. */
+  .settings-field select {
+    font-size: 16px;
+    padding: 13px 36px 13px 14px;
+  }
 }

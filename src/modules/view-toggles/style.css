@@ -1,0 +1,22 @@
+/* view-toggles — active (on) state for the navbar view buttons. Base bare-icon
+   styling is shared (#navbarActions > button in base.css); here we only express the
+   "on" state: full opacity, accent-tinted glyph, soft pill. */
+#navbarActions > button.nav-toggle.active {
+  opacity: 1;
+  color: var(--accent-color, #3c4142);
+  background: color-mix(in srgb, var(--accent-color, #3c4142) 14%, transparent);
+}
+
+[data-theme='dark'] #navbarActions > button.nav-toggle.active {
+  background: color-mix(in srgb, var(--accent-color, #fcfaf6) 18%, transparent);
+}
+
+/* Keep the navbar uncluttered on phones — the 3D view toggles are a desktop concern
+   (no drag-orbit niceties on touch), and three extra icons crowd the small navbar. */
+@media (max-width: 560px) {
+  #autoRotateToggle,
+  #turntableToggle,
+  #projectionToggle {
+    display: none;
+  }
+}

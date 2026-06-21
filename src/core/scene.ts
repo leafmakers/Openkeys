@@ -1,12 +1,23 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
-import type { OpenKeysConfig, Vec3 } from './config';
+import type { OpenKeysConfig, Vec3, OrbitControlsConfig } from './config';
+
+/** Darkness of key shadows on the floor's transparent shadow catcher (0–1). */
+const FLOOR_SHADOW_OPACITY = 0.18;
+/**
+ * Contact-safe directional-shadow tuning. The previous radius of 24 spread the
+ * PCF kernel far enough to erase the contact edge, while a 0.01 normal bias pushed
+ * the first visible samples away from the key base (classic peter-panning).
+ */
+const KEY_SHADOW_RADIUS = 3;
+const KEY_SHADOW_BIAS = -0.00015;
+const KEY_SHADOW_NORMAL_BIAS = 0.002;
 
 export class Scene {
   public scene!: THREE.Scene;
   public renderer!: THREE.WebGLRenderer;
-  public camera!: THREE.OrthographicCamera;
+  public camera!: THREE.OrthographicCamera | THREE.PerspectiveCamera;
   public controls!: OrbitControls;
   private config: OpenKeysConfig;
   /** Element the renderer canvas is appended to (defaults to document.body). */
@@ -17,7 +28,7 @@ export class Scene {
   private backLight!: THREE.DirectionalLight;
   private rimLight!: THREE.DirectionalLight;
   private floor!: THREE.Mesh;
-  private floorMaterial!: THREE.MeshLambertMaterial;
+  private floorMaterial!: THREE.ShadowMaterial;
   private isDarkMode: boolean;
 
   constructor(config: OpenKeysConfig, container: HTMLElement = document.body) {
@@ -40,7 +51,20 @@ export class Scene {
 
   initializeScene() {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(this.theme().background);
+    this.scene.background = new THREE.Color(this.sceneBackgroundColor());
+  }
+
+  /**
+   * Color for the WebGL clear. When the floor is enabled we match it to the floor
+   * color so the ground reads as infinite. An orthographic camera tilted over a
+   * flat plane always leaves part of the viewport *below* the plane — worse the
+   * more you zoom out or the taller the viewport — and the floor's finite size
+   * can't cover it (the gap is below the plane, not past its edge). A mismatched
+   * background would show through there as a hard-edged void; matching hides it.
+   */
+  private sceneBackgroundColor(): string {
+    const colors = this.theme();
+    return this.config.scene.floor.enabled ? colors.floor : colors.background;
   }
 
   setupRenderer() {
@@ -78,7 +102,13 @@ export class Scene {
 
   setupRendererSize() {
     this.renderer.setSize(this.viewportWidth(), this.viewportHeight());
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.config.scene.pixelRatioCap));
+    // Supersample: render at >=2x device pixels (up to the cap), even on 1x displays.
+    // MSAA only anti-aliases coverage; the thin 1px outlines, glyph edges and sharp
+    // clearcoat speculars alias in SHADING and crawl under motion. Extra shaded
+    // samples (SSAA) are the one fix that catches all three. Capped so retina (already
+    // >=2x) is unaffected and perf stays bounded.
+    const ss = Math.max(window.devicePixelRatio, 2);
+    this.renderer.setPixelRatio(Math.min(ss, this.config.scene.pixelRatioCap));
   }
 
   getInitialFrustumSize() {
@@ -88,15 +118,18 @@ export class Scene {
 
   setupCamera() {
     const aspect = this.viewportWidth() / this.viewportHeight();
-    const d = this.getInitialFrustumSize();
-
-    this.camera = new THREE.OrthographicCamera(
-      -d * aspect, d * aspect,
-      d, -d,
-      this.config.camera.near, this.config.camera.far
-    );
-
+    this.camera = this.createCamera(aspect);
     this.applyCameraPlacement();
+  }
+
+  /** Build the camera for the configured projection (orthographic | perspective). */
+  private createCamera(aspect: number): THREE.OrthographicCamera | THREE.PerspectiveCamera {
+    const { projection, near, far, fov } = this.config.camera;
+    if (projection === 'perspective') {
+      return new THREE.PerspectiveCamera(fov, aspect, near, far);
+    }
+    const d = this.getInitialFrustumSize();
+    return new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, near, far);
   }
 
   private applyCameraPlacement() {
@@ -115,17 +148,104 @@ export class Scene {
   configureControls() {
     const c = this.config.camera.controls;
     this.controls.target.set(c.target[0], c.target[1], c.target[2]);
-    this.controls.enableDamping = true;
+    this.applyControlsConfig();
+  }
+
+  /** Push every OrbitControls tuning value from config onto the live controls. */
+  applyControlsConfig() {
+    const c = this.config.camera.controls;
+    this.controls.enableRotate = c.enableRotate;
+    this.controls.enableZoom = c.enableZoom;
+    this.controls.enablePan = c.enablePan;
+    this.controls.enableDamping = c.enableDamping;
     this.controls.dampingFactor = c.dampingFactor;
-    this.controls.maxPolarAngle = c.maxPolarAngle;
+    this.controls.rotateSpeed = c.rotateSpeed;
+    this.controls.zoomSpeed = c.zoomSpeed;
     this.controls.minPolarAngle = c.minPolarAngle;
-    this.controls.enableZoom = true;
+    this.controls.maxPolarAngle = c.maxPolarAngle;
+    this.controls.minAzimuthAngle = c.minAzimuthAngle;
+    this.controls.maxAzimuthAngle = c.maxAzimuthAngle;
     this.controls.minZoom = c.minZoom;
     this.controls.maxZoom = c.maxZoom;
-    this.controls.enablePan = c.enablePan;
-    this.controls.enableRotate = true;
-    this.controls.minAzimuthAngle = -Infinity;
-    this.controls.maxAzimuthAngle = Infinity;
+    // Perspective dolly fence (OrbitControls ignores these for an ortho camera, which
+    // uses min/maxZoom instead). Bounds the camera→target distance so zoom can't push
+    // the board past the near/far planes. Guard against undefined for configs predating
+    // these fields.
+    this.controls.minDistance = c.minDistance ?? 0;
+    this.controls.maxDistance = c.maxDistance ?? Infinity;
+    this.controls.autoRotate = c.autoRotate;
+    this.controls.autoRotateSpeed = c.autoRotateSpeed;
+    this.controls.update();
+  }
+
+  /** Merge a partial controls config and re-apply it live. */
+  setControls(partial: Partial<OrbitControlsConfig>) {
+    Object.assign(this.config.camera.controls, partial);
+    this.applyControlsConfig();
+  }
+
+  /** Current camera orbit angles relative to the target (radians). */
+  getOrbit(): { azimuth: number; polar: number } {
+    return { azimuth: this.controls.getAzimuthalAngle(), polar: this.controls.getPolarAngle() };
+  }
+
+  /**
+   * Orbit the camera to a given azimuth/polar (radians) about the current target,
+   * preserving the eye distance. Polar is clamped to the controls' configured
+   * limits. Used by the view-cube gizmo to drive the keyboard from the UI.
+   */
+  orbitTo(azimuth: number, polar: number) {
+    const offset = this.camera.position.clone().sub(this.controls.target);
+    const sph = new THREE.Spherical().setFromVector3(offset);
+    sph.theta = azimuth;
+    sph.phi = THREE.MathUtils.clamp(polar, this.controls.minPolarAngle, this.controls.maxPolarAngle);
+    sph.makeSafe();
+    offset.setFromSpherical(sph);
+    this.camera.position.copy(this.controls.target).add(offset);
+    this.camera.lookAt(this.controls.target);
+    this.controls.update();
+  }
+
+  /** Snap the camera back to its configured placement, zoom and target. */
+  resetView() {
+    this.applyCameraPlacement();
+    const c = this.config.camera.controls;
+    this.controls.target.set(c.target[0], c.target[1], c.target[2]);
+    this.camera.zoom = 1;
+    this.camera.updateProjectionMatrix();
+    this.controls.update();
+  }
+
+  /**
+   * Live-swap the projection (orthographic ⇆ perspective). Rebuilds the camera and
+   * its OrbitControls, preserving the current eye position and orbit target so the
+   * view doesn't jump. The render loop reads `scene.camera`/`scene.controls` each
+   * frame, so the swap takes effect immediately.
+   */
+  setProjection(projection: 'orthographic' | 'perspective') {
+    if (projection === this.config.camera.projection) return;
+    this.config.camera.projection = projection;
+    const aspect = this.viewportWidth() / this.viewportHeight();
+    const pos = this.camera.position.clone();
+    const target = this.controls.target.clone();
+
+    this.camera = this.createCamera(aspect);
+    this.camera.position.copy(pos);
+    this.camera.lookAt(target);
+
+    this.controls.dispose();
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.target.copy(target);
+    this.applyControlsConfig();
+  }
+
+  /** Live-set the perspective field of view (degrees). No-op for orthographic. */
+  setFov(fov: number) {
+    this.config.camera.fov = fov;
+    if (this.camera instanceof THREE.PerspectiveCamera) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
   }
 
   setupLights() {
@@ -161,9 +281,10 @@ export class Scene {
     this.keyLight.shadow.camera.right = 100;
     this.keyLight.shadow.camera.top = 100;
     this.keyLight.shadow.camera.bottom = -100;
-    this.keyLight.shadow.radius = 24;
-    this.keyLight.shadow.bias = -0.0002;
-    this.keyLight.shadow.normalBias = 0.01;
+    this.keyLight.shadow.radius = KEY_SHADOW_RADIUS;
+    this.keyLight.shadow.bias = KEY_SHADOW_BIAS;
+    this.keyLight.shadow.normalBias = KEY_SHADOW_NORMAL_BIAS;
+    this.keyLight.shadow.camera.updateProjectionMatrix();
   }
 
   setupFillLight() {
@@ -203,43 +324,19 @@ export class Scene {
     const size = this.config.scene.floor.size;
     const floorGeometry = new THREE.PlaneGeometry(size, size);
 
-    // Create halftone shadow texture
-    const canvas = document.createElement('canvas');
-    canvas.width = 128;
-    canvas.height = 128;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Could not get canvas context');
-
-    // Theme-derived halftone pattern for shadows
-    const light = this.config.theme.light;
-    const dark = this.config.theme.dark;
-    ctx.fillStyle = this.isDarkMode ? dark.keyTop : light.floor;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const dotSize = 0.8;
-    const spacing = 8;
-    ctx.fillStyle = this.isDarkMode ? dark.keyText : light.keyText;
-
-    if (this.config.scene.floor.halftone) {
-      for (let x = 0; x < canvas.width; x += spacing) {
-        for (let y = 0; y < canvas.height; y += spacing) {
-          const offsetX = (y / spacing) % 2 === 0 ? 0 : spacing / 2;
-          ctx.beginPath();
-          ctx.arc(x + offsetX, y, dotSize / 2, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-    }
-
-    const shadowTexture = new THREE.CanvasTexture(canvas);
-    shadowTexture.wrapS = THREE.RepeatWrapping;
-    shadowTexture.wrapT = THREE.RepeatWrapping;
-    shadowTexture.repeat.set(8, 8);
-
-    this.floorMaterial = new THREE.MeshLambertMaterial({
-      color: new THREE.Color(this.theme().floor),
-      transparent: false,
-      side: THREE.DoubleSide,
+    // The floor is a pure shadow catcher — it carries NO color of its own. The
+    // ground color is painted by the scene background (see sceneBackgroundColor),
+    // so the visible ground is identical on the plane, past its edge, AND below it.
+    // This is the fix for the "plane opening up" seam: a tilted orthographic camera
+    // always frames some area off the plane (more so when zoomed out / on tall
+    // viewports), and any *colored* floor — even one whose hex matches the
+    // background — renders through lighting + tone mapping at a different value than
+    // the raw background clear color, leaving a visible edge. A transparent
+    // ShadowMaterial sidesteps that entirely: it only darkens where keys cast
+    // shadows and is otherwise the background.
+    this.floorMaterial = new THREE.ShadowMaterial({
+      transparent: true,
+      opacity: FLOOR_SHADOW_OPACITY,
     });
 
     this.floor = new THREE.Mesh(floorGeometry, this.floorMaterial);
@@ -251,10 +348,9 @@ export class Scene {
 
   updateFloorTheme(isDarkMode: boolean) {
     this.isDarkMode = isDarkMode;
-    if (this.floorMaterial) {
-      const colors = isDarkMode ? this.config.theme.dark : this.config.theme.light;
-      this.floorMaterial.color.set(colors.floor);
-    }
+    // The floor is a colorless shadow catcher; the ground color lives on the scene
+    // background, so re-theming just means repainting the backdrop.
+    this.scene.background = new THREE.Color(this.sceneBackgroundColor());
   }
 
   loadEnvironment() {
@@ -267,19 +363,23 @@ export class Scene {
   }
 
   handleResize() {
-    const d = this.getInitialFrustumSize();
     const aspect = this.viewportWidth() / this.viewportHeight();
-
-    this.updateCameraFrustum(d, aspect);
+    this.updateCameraForViewport(aspect);
     this.updateRendererSize();
     this.applyCameraPlacement();
   }
 
-  updateCameraFrustum(d: number, aspect: number) {
-    this.camera.left = -d * aspect;
-    this.camera.right = d * aspect;
-    this.camera.top = d;
-    this.camera.bottom = -d;
+  /** Re-fit the active camera to the viewport aspect (frustum for ortho, aspect for perspective). */
+  updateCameraForViewport(aspect: number) {
+    if (this.camera instanceof THREE.PerspectiveCamera) {
+      this.camera.aspect = aspect;
+    } else {
+      const d = this.getInitialFrustumSize();
+      this.camera.left = -d * aspect;
+      this.camera.right = d * aspect;
+      this.camera.top = d;
+      this.camera.bottom = -d;
+    }
     this.camera.updateProjectionMatrix();
   }
 

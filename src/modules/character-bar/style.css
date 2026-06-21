@@ -5,9 +5,8 @@
 #characterBar {
   position: relative;
   width: 100%;
-  height: 8px;
+  height: 9px;
   background: transparent;
-  border-radius: 4px;
   overflow: visible;
   margin: 0;
 }
@@ -17,44 +16,127 @@
   width: 100%;
   height: 100%;
   display: flex;
+  gap: 3px; /* crisp separation between segments */
 }
 
 .bar-segment {
   height: 100%;
   transition: flex-grow 0.3s ease;
-  background: var(--accent-color);
   border: none;
   position: relative;
-  min-width: 8px;
+  min-width: 6px;
+  border-radius: 3px; /* uniform — every segment is its own rounded chip */
+}
+
+/* The colored bar is a SEPARATE fill layer (not the segment background), so it can
+   grow on hover independently of the label + tick — which are siblings of this
+   layer, never children of it. That's what keeps the label crisp (no skew) and in
+   place while the bar scales "out of proportion". Color comes from --bar-fill, set
+   per-segment by the module. */
+.bar-segment::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--bar-fill, var(--accent-color));
   border-radius: inherit;
+  /* Grow from the center, not the base — a symmetric "breathe" reads as more
+     natural than shooting up from the baseline. The space is asymmetric (open gap
+     above, the tick at y=12 below), so the scale is capped to clear the tick:
+     bottom edge = 4.5 + 4.5·scaleY; at 1.5 that's 11.25px, ~0.75px shy of the tick
+     (overlap would only begin at ~1.667). */
+  transform-origin: center center;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), filter 0.18s ease;
+}
+
+/* Highlightable segments (everything but "others") read as interactive. */
+.bar-segment--key {
+  cursor: pointer;
+}
+
+/* Hover — or the linked 3D-key hover (.is-hovered) — the colored bar breathes open
+   symmetrically. The label/tick are siblings (not children), so nothing skews. */
+.bar-segment--key:hover::before,
+.bar-segment--key.is-hovered::before {
+  transform: scaleY(1.5);
+  filter: brightness(1.06);
 }
 
 
 .bar-label {
   position: absolute;
   top: 16px;
-  left: 50%;
+  left: var(--bar-label-center-x, 50%);
   transform: translateX(-50%);
   font-size: 11px;
-  color: var(--text-color);
+  color: #fff;
   white-space: nowrap;
   font-weight: 500;
   font-family: sans-serif;
-  background: var(--bg-color);
+  background: #252525;
   padding: 2px 4px;
   border-radius: 3px;
-  border: 1px solid var(--text-color);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  /* Same curve/duration as the bar so the two read as one gesture. */
+  transition: opacity 0.14s ease, visibility 0s linear 0.14s,
+    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease;
+}
+
+/* The label sits just left of the pointer and lifts a hair toward the breathing
+   bar. Translation avoids scaling, keeping the small text and border crisp. */
+.bar-segment:hover .bar-label,
+.bar-segment.is-hovered .bar-label {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(-1.5px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  transition-delay: 0s;
+}
+
+[data-theme="dark"] .bar-label {
+  color: #111;
+  background: #fff;
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.18);
+}
+
+[data-theme="dark"] .bar-segment:hover .bar-label,
+[data-theme="dark"] .bar-segment.is-hovered .bar-label {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 
 .bar-line {
   position: absolute;
   top: 12px;
-  left: 50%;
+  left: var(--bar-label-center-x, 50%);
   transform: translateX(-50%);
   width: 1px;
   height: 4px;
   background: var(--text-color);
-  opacity: 0.8;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+/* ---------- Mobile ---------- */
+/* Narrower segment floor + gap so the full distribution fits the phone dock instead
+   of overflowing (body is overflow:hidden, which would silently clip the tail). */
+@media (max-width: 480px) {
+  #characterBarSegments {
+    gap: 2px;
+  }
+
+  .bar-segment {
+    min-width: 2px;
+  }
+}
+
+/* The connector firms up to full opacity — a quiet cue that this marker is active.
+   No length/position change (those read as nothing at this scale). */
+.bar-segment:hover .bar-line,
+.bar-segment.is-hovered .bar-line {
+  opacity: 1;
 }

@@ -1,15 +1,23 @@
-/* poster — preview modal + the Preview Poster button. */
+/* poster — the preview modal. Shares the app's surface language (rounded card,
+   1px border, soft shadow, header + circular ×, one primary action). The module
+   toggles #previewModal between display:none and block; the entrance animations
+   replay automatically on that none→block transition. */
 
 #previewModal {
   display: none;
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.8);
+  inset: 0;
   z-index: 2000;
-  backdrop-filter: blur(4px);
+  /* Centring: block overlay (the module toggles display:block) with an
+     absolutely-centred card, so the `=== 'block'` open-checks keep working. */
+  background: rgba(0, 0, 0, 0.4);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  animation: poster-overlay-in 0.18s ease;
+}
+
+[data-theme="dark"] #previewModal {
+  background: rgba(0, 0, 0, 0.58);
 }
 
 #previewContent {
@@ -17,109 +25,258 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: var(--input-bg);
-  padding: 8px;
-  border-radius: 8px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
-  width: 80vw;
-  height: 80vh;
-  max-width: 900px;
-  max-height: 700px;
+  box-sizing: border-box;
+  width: min(92vw, 720px);
+  max-height: min(90vh, 760px);
   display: flex;
   flex-direction: column;
+  background: var(--bg-color);
+  color: var(--text-color);
+  border: 1px solid var(--input-border);
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 24px 60px rgba(0, 0, 0, 0.24);
+  padding: 14px 16px 16px;
+  gap: 14px;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  animation: poster-card-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* ---------- Header ---------- */
+#previewHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+}
+
+.preview-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: var(--text-color);
+}
+
+.preview-close {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-color);
+  opacity: 0.5;
+  cursor: pointer;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.preview-close svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.preview-close:hover {
+  opacity: 1;
+  background: rgba(120, 120, 120, 0.16);
+}
+
+/* ---------- Poster image ---------- */
 #previewImageContainer {
   flex: 1;
-  overflow: hidden;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
-  min-height: 0;
-  min-width: 0;
-  text-align: center;
+  /* A faint recessed surface so the (often light) poster reads as a distinct
+     artifact on the card. */
+  background: rgba(120, 120, 120, 0.07);
+  border: 1px solid var(--input-border);
+  border-radius: 10px;
+  padding: 14px;
+  overflow: hidden;
 }
 
 #previewImage {
+  display: block;
   max-width: 100%;
   max-height: 100%;
   width: auto;
   height: auto;
   object-fit: contain;
-  border-radius: 4px;
-  border: 1px solid var(--input-border);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  display: block;
-  margin: auto;
-  margin-bottom: 10px;
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
 }
 
+/* ---------- Action ---------- */
 #previewControls {
   display: flex;
-  gap: 8px;
-  width: 100%;
-  flex-shrink: 0;
-}
-
-#closePreview {
-  background: var(--button-default-bg);
-  border-color: var(--button-default-border);
-  color: var(--button-default-color);
-  flex: 1;
+  flex: none;
 }
 
 #printFromPreview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  flex: none;
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--button-primary-border);
   background: var(--button-primary-bg);
   color: var(--button-primary-color);
-  border-color: var(--button-primary-border);
-  flex: 1;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  transition: filter 0.15s ease, transform 0.1s ease;
+}
+
+#printFromPreview svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 #printFromPreview:hover {
-  background: var(--button-primary-hover-bg);
+  filter: brightness(1.08);
 }
 
-/* The Preview Poster trigger — a self-contained pill matching #fontControls,
-   sitting beside it in the bottom controls row (layout flex set in base.css). */
-#previewAndPrint {
-  background: var(--bg-color);
-  color: var(--text-color);
-  border: 1px solid var(--input-border);
-  border-radius: 999px;
-  padding: 9px 18px;
+#printFromPreview:active {
+  transform: scale(0.99);
+}
+
+/* ---------- Type controls ---------- */
+/* A quiet 2-up grid of thin sliders. No font-family control — the keycap font is
+   the type; these just tune its size, weight, kerning and leading on the poster. */
+#posterControls {
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 20px;
+}
+
+.poster-control {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.poster-control-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 11px;
   font-weight: 600;
-  white-space: nowrap;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-color);
+  opacity: 0.55;
 }
 
-[data-theme="dark"] #previewAndPrint {
-  background: rgba(37, 37, 37, 0.92);
+.poster-control-head em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
 }
 
-#previewAndPrint:hover {
-  background: var(--button-hover-bg);
-  border-color: var(--text-color);
+.poster-control input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--input-border);
+  cursor: pointer;
 }
 
+.poster-control input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-color);
+  border: none;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
 
-/* Bounce animation for preview button */
-@keyframes bouncePreview {
-  0%, 20%, 60%, 100% {
-    transform: translateY(0);
+.poster-control input[type='range']::-webkit-slider-thumb:active {
+  transform: scale(1.15);
+}
+
+.poster-control input[type='range']::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-color);
+  border: none;
+  cursor: pointer;
+}
+
+@keyframes poster-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes poster-card-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.97); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* The poster trigger is a navbar icon button; its styling lives with the other
+   navbar icon buttons in base.css (#navbarActions > button + its svg rule). */
+
+/* ---------- Mobile ---------- */
+@media (max-width: 480px) {
+  #previewContent {
+    width: calc(100vw - 24px);
+    max-height: calc(100dvh - 96px);
+    padding: 12px 14px 14px;
+    /* Clear the notch + home indicator. */
+    padding-top: max(12px, env(safe-area-inset-top, 0px));
+    padding-bottom: max(14px, env(safe-area-inset-bottom, 0px));
+    gap: 12px;
   }
-  40% {
-    transform: translateY(-8px);
+
+  /* 44px close hit area (was 28px). */
+  .preview-close {
+    width: 44px;
+    height: 44px;
   }
-  80% {
-    transform: translateY(-4px);
+
+  #previewImageContainer {
+    padding: 10px;
+  }
+
+  /* Stack the type controls on phones so the sliders stay wide enough to drag. */
+  #posterControls {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  /* Fatter track + thumb so the poster sliders are draggable by thumb. */
+  .poster-control input[type='range'] {
+    height: 5px;
+  }
+
+  .poster-control input[type='range']::-webkit-slider-thumb {
+    width: 22px;
+    height: 22px;
+  }
+
+  .poster-control input[type='range']::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
   }
 }
-
-#previewAndPrint.bounce {
-  animation: bouncePreview 0.8s ease-out 4;
-}
-
-/* Desktop Styles (larger screens) */

@@ -10,7 +10,9 @@ import type {
   DataConfig,
   ThemeColors,
   LayoutConfig,
+  OrbitControlsConfig,
   Cell,
+  LabelAnchor,
 } from './config';
 
 /**
@@ -55,6 +57,13 @@ export interface OpenKeysEvents {
 
   /** Config merged (after setConfig/setLayout). Settings UI re-reads to reflect live state. */
   config: { config: Readonly<OpenKeysConfig> };
+
+  /**
+   * Pointer hover over a 3D key changed (null = nothing under the cursor). Lets
+   * views (e.g. the character bar) mirror the hover both ways. Emitted only on
+   * change, mouse-only.
+   */
+  hover: { keyId: string | null };
 }
 
 export type EventName = keyof OpenKeysEvents;
@@ -108,15 +117,72 @@ export interface OpenKeysEngine {
 
   setTheme(mode: 'light' | 'dark'): void;
   setKeyCapFont(family: string, name: string): void;
+  /** Engraved-letter size, placement on the cap, and stroke weight (recreate labels). */
+  setTextSize(size: number): void;
+  setLabelAnchor(anchor: LabelAnchor): void;
+  setLabelWeight(weight: number): void;
   setLayout(rows: Cell[][], preset?: LayoutConfig['preset']): void;
   setConfig(partial: DeepPartial<OpenKeysConfig>): void;
+  /** Live-set the opacity (0–1) of structural (non-data) keys. */
+  setStructuralKeyOpacity(opacity: number): void;
+  /** Live-set the resting height (key-height units) of structural (non-data) keys. */
+  setStructuralKeyHeight(height: number): void;
+  /** Live-set the starting/resting height (key-height units) of the data (main 36) keys. */
+  setMainKeyHeight(height: number): void;
+  /** Live-set the base rise per tap (height per occurrence, before proportional auto-scaling). */
+  setRisePerTap(rise: number): void;
+  /** Live-set the composition ceiling — the tallest data key auto-scales to fit it (0 = uncapped). */
+  setMaxKeyHeight(height: number): void;
+  /** Live-set the data (main 36) key top-face opacity multiplier (0–1). */
+  setFaceOpacity(opacity: number): void;
+  /** Live-set the data (main 36) key side-wall opacity multiplier (0–1). */
+  setWallOpacity(opacity: number): void;
+  /** Live-set the data-key edge + base outline opacity multiplier (0–1). */
+  setOutlineOpacity(opacity: number): void;
+  /** Live-set the data-key engraved-label opacity multiplier (0–1). */
+  setTextOpacity(opacity: number): void;
+  /** Live-set the structural (extra) key top-face opacity multiplier (0–1). */
+  setExtraFaceOpacity(opacity: number): void;
+  /** Live-set the structural (extra) key side-wall opacity multiplier (0–1). */
+  setExtraWallOpacity(opacity: number): void;
+  /** Live-set the structural-key edge + base outline opacity multiplier (0–1). */
+  setExtraOutlineOpacity(opacity: number): void;
+  /** Live-set the structural-key engraved-label opacity multiplier (0–1). */
+  setExtraTextOpacity(opacity: number): void;
+  /** Spotlight a single key with a subtle accent in `color` (e.g. on bar hover). */
+  highlightKey(label: string, color: string): void;
+  /** Remove the current hover spotlight. */
+  clearHighlight(): void;
+  /** Live-update the floor boundary outline (enabled / gap / radius / opacity). */
+  setBoundary(partial: Partial<OpenKeysConfig['scene']['boundary']>): void;
   setLightAngle(deg: number): void;
+  /** Live-update OrbitControls constraints (orbit/zoom/pan locks, damping, auto-rotate). */
+  setCameraControls(partial: Partial<OrbitControlsConfig>): void;
+  /** Snap the camera back to its configured placement, zoom and target. */
+  resetCameraView(): void;
+  /** Current camera orbit angles (radians) relative to the target. */
+  getOrbit(): { azimuth: number; polar: number };
+  /** Orbit the camera to an azimuth/polar (radians); polar is clamped to the limits. */
+  setOrbit(azimuth: number, polar: number): void;
+  /** Live-swap the camera projection (orthographic ⇆ perspective). */
+  setProjection(projection: 'orthographic' | 'perspective'): void;
+  /** Live-set the perspective field of view in degrees (no-op for orthographic). */
+  setCameraFov(fov: number): void;
   increaseHeight(): void;
   decreaseHeight(): void;
 
   /** Force-renders before reading pixels, regardless of loop state. */
   exportImage(): string;
   resize(): void;
+
+  /**
+   * Render/present seam for post-processing. The engine's loop calls the presenter
+   * once per frame in place of its direct `renderer.render(scene, camera)`. A
+   * post-processing module swaps in its own (e.g. an EffectComposer's render);
+   * passing `null` restores the default direct render. This is the ONLY hook the
+   * compositing stack needs in core — effects otherwise stay ordinary modules.
+   */
+  setPresenter(present: (() => void) | null): void;
 
   start(): void;
   stop(): void;

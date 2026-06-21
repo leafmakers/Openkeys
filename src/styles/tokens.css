@@ -1,9 +1,16 @@
 /* OpenKeys design tokens — CSS custom properties (light + dark), the Inter
    webfont import, and the bare body/canvas reset. Loaded first, globally. */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700&display=swap');
 
 /* Base styles */
+html,
+body {
+  /* Stop scroll-chaining/rubber-band on mobile: scrollable overlays (settings, font
+     drawer) won't bleed into the document and reveal blank area behind the fixed canvas. */
+  overscroll-behavior: none;
+}
+
 body {
   margin: 0;
   overflow: hidden;
@@ -50,8 +57,6 @@ body {
   --nav-h: 60px;
   --gutter: clamp(12px, 4vw, 24px);
   --dock-max: 700px;
-  /* Soft-keyboard inset (mobile): lifted by the text-input module via visualViewport. */
-  --kb-inset: 0px;
 }
 
 /* Dark theme colors */
